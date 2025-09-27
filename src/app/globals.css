@@ -1,26 +1,231 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Paleta de Cores TCC - Melhorada para contraste */
+  --turquoise: #00C2A8;
+  --turquoise-dark: #009B86;
+  --dark-blue: #003B4A;
+  --light-green: #A7F0E0;
+  --light-green-dark: #85C0B0;
+  --white: #FFFFFF;
+  --light-gray: #F5F7F8;
+  --medium-gray: #4A5568;
+  --dark-gray: #1A202C;
+  --coral-orange: #FF7043;
+  --coral-dark: #E55A2B;
+  
+  /* Variáveis do sistema com melhor contraste */
+  --background: var(--white);
+  --foreground: var(--dark-gray);
+  --card: var(--white);
+  --card-foreground: var(--dark-gray);
+  --popover: var(--white);
+  --popover-foreground: var(--dark-gray);
+  --primary: var(--turquoise);
+  --primary-foreground: var(--white);
+  --secondary: var(--light-gray);
+  --secondary-foreground: var(--dark-gray);
+  --muted: var(--light-gray);
+  --muted-foreground: var(--medium-gray);
+  --accent: var(--light-green);
+  --accent-foreground: var(--dark-gray);
+  --destructive: var(--coral-orange);
+  --destructive-foreground: var(--white);
+  --border: #E2E8F0;
+  --input: var(--light-gray);
+  --ring: var(--turquoise);
+  --radius: 0.5rem;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --radius: var(--radius);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: var(--dark-blue);
+    --foreground: var(--white);
+    --card: var(--dark-blue);
+    --card-foreground: var(--white);
+    --popover: var(--dark-blue);
+    --popover-foreground: var(--white);
+    --primary: var(--turquoise);
+    --primary-foreground: var(--white);
+    --secondary: var(--medium-gray);
+    --secondary-foreground: var(--white);
+    --muted: var(--medium-gray);
+    --muted-foreground: var(--light-green);
+    --accent: var(--light-green);
+    --accent-foreground: var(--dark-gray);
+    --destructive: var(--coral-orange);
+    --destructive-foreground: var(--white);
+    --border: var(--medium-gray);
+    --input: var(--medium-gray);
+    --ring: var(--turquoise);
   }
+}
+
+* {
+  border-color: hsl(var(--border));
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* Garantir contraste em todo o sistema */
+header a,
+header button,
+.text-dark-gray,
+.text-medium-gray {
+  color: #1A202C !important;
+}
+
+header a:hover,
+header button:hover {
+  color: #00C2A8 !important;
+}
+
+header button {
+  background-color: transparent !important;
+}
+
+/* Garantir que textos em fundos brancos sejam escuros */
+.bg-white .text-white,
+.bg-white .text-gray-100,
+.bg-white .text-gray-200,
+.bg-white .text-gray-300,
+.bg-white .text-gray-400,
+.bg-white .text-gray-500 {
+  color: #1A202C !important;
+}
+
+/* Garantir que textos em fundos escuros sejam claros */
+.bg-dark-blue .text-dark-gray,
+.bg-dark-blue .text-medium-gray,
+.bg-dark-blue .text-gray-600,
+.bg-dark-blue .text-gray-700,
+.bg-dark-blue .text-gray-800,
+.bg-dark-blue .text-gray-900 {
+  color: #FFFFFF !important;
+}
+
+/* Forçar contraste em todos os elementos de texto */
+* {
+  color: inherit !important;
+}
+
+/* Específico para elementos com fundo branco */
+.bg-white,
+.bg-gray-50,
+.bg-gray-100 {
+  color: #1A202C !important;
+}
+
+.bg-white *,
+.bg-gray-50 *,
+.bg-gray-100 * {
+  color: #1A202C !important;
+}
+
+/* Específico para elementos com fundo escuro */
+.bg-dark-blue,
+.bg-gray-800,
+.bg-gray-900 {
+  color: #FFFFFF !important;
+}
+
+.bg-dark-blue *,
+.bg-gray-800 *,
+.bg-gray-900 * {
+  color: #FFFFFF !important;
+}
+
+/* Regras específicas para garantir contraste */
+.text-white {
+  color: #FFFFFF !important;
+}
+
+.text-dark-gray {
+  color: #1A202C !important;
+}
+
+.text-medium-gray {
+  color: #4A5568 !important;
+}
+
+/* Forçar contraste em elementos específicos */
+button,
+a,
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+span,
+div {
+  color: inherit !important;
+}
+
+/* Garantir que elementos em fundos brancos tenham texto escuro */
+.bg-white button,
+.bg-white a,
+.bg-white p,
+.bg-white h1,
+.bg-white h2,
+.bg-white h3,
+.bg-white h4,
+.bg-white h5,
+.bg-white h6,
+.bg-white span,
+.bg-white div {
+  color: #1A202C !important;
+}
+
+/* Garantir que elementos em fundos escuros tenham texto claro */
+.bg-dark-blue button,
+.bg-dark-blue a,
+.bg-dark-blue p,
+.bg-dark-blue h1,
+.bg-dark-blue h2,
+.bg-dark-blue h3,
+.bg-dark-blue h4,
+.bg-dark-blue h5,
+.bg-dark-blue h6,
+.bg-dark-blue span,
+.bg-dark-blue div {
+  color: #FFFFFF !important;
+}
+
+/* Estilos para carrossel */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
