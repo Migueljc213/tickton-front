@@ -162,15 +162,15 @@ export default function OrganizerPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* Gestão de Eventos */}
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300">
+            <Card className="bg-white border border-gray-200 shadow-lg hover:shadow-xl transition-shadow duration-300">
               <CardHeader className="text-center pb-4">
                 <div className="w-16 h-16 bg-turquoise/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <FaCalendarAlt className="text-2xl text-turquoise" />
                 </div>
-                <CardTitle className="text-xl font-bold text-gray-900">Gestão Completa</CardTitle>
+                <CardTitle className="text-xl font-bold" style={{ color: '#111827' }}>Gestão Completa</CardTitle>
               </CardHeader>
               <CardContent className="text-center">
-                <CardDescription className="text-gray-600 leading-relaxed">
+                <CardDescription className="leading-relaxed" style={{ color: '#374151' }}>
                   Crie, edite e gerencie seus eventos com facilidade. 
                   Interface intuitiva e ferramentas poderosas.
                 </CardDescription>
@@ -178,15 +178,15 @@ export default function OrganizerPage() {
             </Card>
 
             {/* Vendas e Ingressos */}
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300">
+            <Card className="bg-white border border-gray-200 shadow-lg hover:shadow-xl transition-shadow duration-300">
               <CardHeader className="text-center pb-4">
                 <div className="w-16 h-16 bg-turquoise/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <FaTicketAlt className="text-2xl text-turquoise" />
                 </div>
-                <CardTitle className="text-xl font-bold text-gray-900">Vendas Inteligentes</CardTitle>
+                <CardTitle className="text-xl font-bold" style={{ color: '#111827' }}>Vendas Inteligentes</CardTitle>
               </CardHeader>
               <CardContent className="text-center">
-                <CardDescription className="text-gray-600 leading-relaxed">
+                <CardDescription className="leading-relaxed" style={{ color: '#374151' }}>
                   Múltiplos tipos de ingressos, lotes automáticos e 
                   relatórios de vendas em tempo real.
                 </CardDescription>
@@ -194,15 +194,15 @@ export default function OrganizerPage() {
             </Card>
 
             {/* Analytics */}
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300">
+            <Card className="bg-white border border-gray-200 shadow-lg hover:shadow-xl transition-shadow duration-300">
               <CardHeader className="text-center pb-4">
                 <div className="w-16 h-16 bg-turquoise/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <FaChartLine className="text-2xl text-turquoise" />
                 </div>
-                <CardTitle className="text-xl font-bold text-gray-900">Analytics Avançado</CardTitle>
+                <CardTitle className="text-xl font-bold" style={{ color: '#111827' }}>Analytics Avançado</CardTitle>
               </CardHeader>
               <CardContent className="text-center">
-                <CardDescription className="text-gray-600 leading-relaxed">
+                <CardDescription className="leading-relaxed" style={{ color: '#374151' }}>
                   Relatórios detalhados, métricas de performance e 
                   insights para otimizar seus eventos.
                 </CardDescription>
@@ -210,15 +210,15 @@ export default function OrganizerPage() {
             </Card>
 
             {/* Pagamentos */}
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300">
+            <Card className="bg-white border border-gray-200 shadow-lg hover:shadow-xl transition-shadow duration-300">
               <CardHeader className="text-center pb-4">
                 <div className="w-16 h-16 bg-turquoise/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <FaShieldAlt className="text-2xl text-turquoise" />
                 </div>
-                <CardTitle className="text-xl font-bold text-gray-900">Pagamentos Seguros</CardTitle>
+                <CardTitle className="text-xl font-bold" style={{ color: '#111827' }}>Pagamentos Seguros</CardTitle>
               </CardHeader>
               <CardContent className="text-center">
-                <CardDescription className="text-gray-600 leading-relaxed">
+                <CardDescription className="leading-relaxed" style={{ color: '#374151' }}>
                   Múltiplos métodos de pagamento com proteção total 
                   para você e seus participantes.
                 </CardDescription>
@@ -226,15 +226,15 @@ export default function OrganizerPage() {
             </Card>
 
             {/* Mobile */}
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300">
+            <Card className="bg-white border border-gray-200 shadow-lg hover:shadow-xl transition-shadow duration-300">
               <CardHeader className="text-center pb-4">
                 <div className="w-16 h-16 bg-turquoise/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <FaMobileAlt className="text-2xl text-turquoise" />
                 </div>
-                <CardTitle className="text-xl font-bold text-gray-900">App Mobile</CardTitle>
+                <CardTitle className="text-xl font-bold" style={{ color: '#111827' }}>App Mobile</CardTitle>
               </CardHeader>
               <CardContent className="text-center">
-                <CardDescription className="text-gray-600 leading-relaxed">
+                <CardDescription className="leading-relaxed" style={{ color: '#374151' }}>
                   Gerencie seus eventos de qualquer lugar com nosso 
                   aplicativo móvel completo.
                 </CardDescription>
@@ -242,15 +242,15 @@ export default function OrganizerPage() {
             </Card>
 
             {/* Suporte */}
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300">
+            <Card className="bg-white border border-gray-200 shadow-lg hover:shadow-xl transition-shadow duration-300">
               <CardHeader className="text-center pb-4">
                 <div className="w-16 h-16 bg-turquoise/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <FaHeadset className="text-2xl text-turquoise" />
                 </div>
-                <CardTitle className="text-xl font-bold text-gray-900">Suporte 24/7</CardTitle>
+                <CardTitle className="text-xl font-bold" style={{ color: '#111827' }}>Suporte 24/7</CardTitle>
               </CardHeader>
               <CardContent className="text-center">
-                <CardDescription className="text-gray-600 leading-relaxed">
+                <CardDescription className="leading-relaxed" style={{ color: '#374151' }}>
                   Suporte especializado sempre disponível para 
                   ajudar você a ter sucesso.
                 </CardDescription>
