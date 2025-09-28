@@ -25,7 +25,7 @@ export const mockEvents: Event[] = [
     type: 'paid',
     featured: true,
     status: 'active',
-    image: '',
+    image: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&h=250&fit=crop&crop=center',
     tickets: [
       {
         id: '1',
@@ -72,7 +72,7 @@ export const mockEvents: Event[] = [
     type: 'paid',
     featured: true,
     status: 'active',
-    image: '',
+    image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&h=250&fit=crop&crop=center',
     tickets: [
       {
         id: '3',
@@ -111,7 +111,7 @@ export const mockEvents: Event[] = [
     type: 'paid',
     featured: false,
     status: 'active',
-    image: '',
+    image: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=250&fit=crop&crop=center',
     tickets: [
       {
         id: '4',
@@ -158,7 +158,7 @@ export const mockEvents: Event[] = [
     type: 'free',
     featured: true,
     status: 'active',
-    image: '',
+    image: 'https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=400&h=250&fit=crop&crop=center',
     tickets: [
       {
         id: '6',
@@ -197,7 +197,7 @@ export const mockEvents: Event[] = [
     type: 'paid',
     featured: false,
     status: 'active',
-    image: '',
+    image: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=250&fit=crop&crop=center',
     tickets: [
       {
         id: '7',
@@ -236,7 +236,7 @@ export const mockEvents: Event[] = [
     type: 'paid',
     featured: true,
     status: 'active',
-    image: '',
+    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=250&fit=crop&crop=center',
     tickets: [
       {
         id: '8',

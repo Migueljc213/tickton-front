@@ -79,19 +79,29 @@ export default function EventCard({ event, showDistance = false, distance }: Eve
   };
 
   return (
-    <Card className="w-80 flex-shrink-0 hover:shadow-lg transition-all duration-300 group cursor-pointer">
+    <Card className="w-80 flex-shrink-0 hover:shadow-xl transition-all duration-300 group cursor-pointer border border-gray-200 hover:border-turquoise/20 bg-white">
       <Link href={`/events/${event.id}`}>
         <div className="relative">
           {/* Event Image */}
           <div className="aspect-video bg-light-gray rounded-t-lg flex items-center justify-center relative overflow-hidden">
-            <span className="text-4xl">{getCategoryIcon(event.category)}</span>
+            {event.image ? (
+              <img 
+                src={event.image} 
+                alt={event.title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-turquoise/20 to-light-green/20 flex items-center justify-center">
+                <span className="text-4xl">{getCategoryIcon(event.category)}</span>
+              </div>
+            )}
             {event.featured && (
               <div className="absolute top-3 left-3 bg-turquoise text-white px-2 py-1 rounded-full text-xs font-semibold">
                 Destaque
               </div>
             )}
             {showDistance && distance && (
-              <div className="absolute top-3 right-3 bg-white/90 text-dark-gray px-2 py-1 rounded-full text-xs font-medium">
+              <div className="absolute top-3 right-3 bg-white/95 text-gray-700 px-2 py-1 rounded-full text-xs font-semibold shadow-md">
                 {distance} km
               </div>
             )}
@@ -99,7 +109,14 @@ export default function EventCard({ event, showDistance = false, distance }: Eve
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-8 h-8 bg-white/90 hover:bg-white text-medium-gray"
+                className="w-8 h-8 bg-white hover:bg-gray-50 shadow-lg hover:shadow-xl transition-all border border-gray-200"
+                style={{ color: '#374151' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#00C2A8';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = '#374151';
+                }}
                 onClick={(e) => {
                   e.preventDefault();
                   // Handle favorite
@@ -110,7 +127,14 @@ export default function EventCard({ event, showDistance = false, distance }: Eve
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-8 h-8 bg-white/90 hover:bg-white text-medium-gray"
+                className="w-8 h-8 bg-white hover:bg-gray-50 shadow-lg hover:shadow-xl transition-all border border-gray-200"
+                style={{ color: '#374151' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#00C2A8';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = '#374151';
+                }}
                 onClick={(e) => {
                   e.preventDefault();
                   // Handle share
@@ -125,14 +149,14 @@ export default function EventCard({ event, showDistance = false, distance }: Eve
             <div className="space-y-3">
               {/* Event Title */}
               <div>
-                <h3 className="font-semibold text-dark-gray text-lg line-clamp-2 group-hover:text-turquoise transition-colors">
+                <h3 className="font-semibold text-lg line-clamp-2 group-hover:text-turquoise transition-colors" style={{ color: '#111827' }}>
                   {event.title}
                 </h3>
                 <div className="flex items-center space-x-2 mt-1">
-                  <span className="text-sm bg-light-green/20 text-dark-blue px-2 py-1 rounded-full">
+                  <span className="text-sm bg-turquoise/10 px-2 py-1 rounded-full font-medium" style={{ color: '#007465' }}>
                     {getCategoryLabel(event.category)}
                   </span>
-                  <span className="text-sm text-medium-gray">
+                  <span className="text-sm font-semibold" style={{ color: '#374151' }}>
                     {event.type === 'free' ? 'Gratuito' : formatPrice(getMinPrice())}
                   </span>
                 </div>
@@ -140,31 +164,42 @@ export default function EventCard({ event, showDistance = false, distance }: Eve
 
               {/* Event Details */}
               <div className="space-y-2">
-                <div className="flex items-center text-sm text-medium-gray">
+                <div className="flex items-center text-sm" style={{ color: '#374151' }}>
                   <FaCalendarAlt className="w-4 h-4 mr-2 text-turquoise" />
                   {formatDate(event.date)} às {event.time}
                 </div>
                 
-                <div className="flex items-center text-sm text-medium-gray">
+                <div className="flex items-center text-sm" style={{ color: '#374151' }}>
                   <FaMapMarkerAlt className="w-4 h-4 mr-2 text-turquoise" />
                   <span className="truncate">{event.location.name}, {event.location.city}</span>
                 </div>
                 
-                <div className="flex items-center text-sm text-medium-gray">
+                <div className="flex items-center text-sm" style={{ color: '#374151' }}>
                   <FaUsers className="w-4 h-4 mr-2 text-turquoise" />
                   {getAvailableTickets()} ingressos disponíveis
                 </div>
               </div>
 
               {/* Organizer */}
-              <div className="pt-2 border-t border-light-gray">
-                <p className="text-xs text-medium-gray">
-                  por <span className="font-medium text-dark-gray">{event.organizer.name}</span>
+              <div className="pt-2 border-t border-gray-200">
+                <p className="text-xs" style={{ color: '#6B7280' }}>
+                  por <span className="font-medium" style={{ color: '#374151' }}>{event.organizer.name}</span>
                 </p>
               </div>
 
               {/* Action Button */}
-              <Button className="w-full bg-turquoise hover:bg-turquoise/90 text-white group-hover:shadow-md transition-all">
+              <Button 
+                className="w-full text-white font-bold py-3 group-hover:shadow-xl transition-all duration-300 hover:scale-[1.02] rounded-lg shadow-md"
+                style={{ 
+                  backgroundColor: '#00C2A8'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#009B86';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#00C2A8';
+                }}
+              >
                 <FaTicketAlt className="mr-2 w-4 h-4" />
                 Ver Detalhes
               </Button>

@@ -56,11 +56,11 @@ export default function Carousel({
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h2 className="text-2xl md:text-3xl font-bold text-dark-gray">{title}</h2>
+          <h2 className="heading-md text-dark-gray mb-2">{title}</h2>
           {subtitle && (
-            <p className="text-medium-gray mt-1">{subtitle}</p>
+            <p className="text-body-lg text-medium-gray">{subtitle}</p>
           )}
         </div>
         

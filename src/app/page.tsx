@@ -8,59 +8,81 @@ import { getFeaturedEvents, getNearbyEvents } from "@/data/mockEvents"
 export default function Home() {
   return (
     <div className="min-h-screen">
-      {/* Hero Section */}
-      <section className="bg-gradient-to-br from-dark-blue via-turquoise/30 to-light-green/40 py-12 md:py-20 relative overflow-hidden">
-        {/* Overlay para garantir contraste */}
-        <div className="absolute inset-0 bg-gradient-to-br from-dark-blue/60 via-transparent to-dark-blue/40"></div>
+      {/* Hero Section - Design Profissional */}
+      <section className="bg-gradient-to-br from-dark-blue via-turquoise/20 to-light-green/30 py-16 md:py-24 relative overflow-hidden">
+        {/* Overlay sutil para melhor contraste */}
+        <div className="absolute inset-0 bg-gradient-to-br from-dark-blue/70 via-transparent to-dark-blue/30"></div>
+        
+        {/* Elementos decorativos */}
+        <div className="absolute top-10 left-10 w-72 h-72 bg-turquoise/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-10 right-10 w-96 h-96 bg-light-green/10 rounded-full blur-3xl"></div>
+        
         <div className="container mx-auto px-4 relative z-10">
-          <div className="text-center max-w-4xl mx-auto">
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 md:mb-6 leading-tight drop-shadow-lg">
+          <div className="text-center max-w-5xl mx-auto">
+            <h1 className="heading-xl text-white mb-6 md:mb-8 leading-tight">
               Eventos que
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-light-green to-turquoise">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-light-green to-turquoise block md:inline">
                 {" "}conectam pessoas
               </span>
             </h1>
-            <p className="text-lg md:text-xl text-white/90 mb-6 md:mb-8 max-w-2xl mx-auto leading-relaxed drop-shadow-md">
+            <p className="text-body-lg text-white/95 mb-8 md:mb-12 max-w-3xl mx-auto leading-relaxed">
               Descubra eventos incríveis na sua cidade ou crie o seu próprio evento. 
-              A plataforma completa para organizadores e participantes.
+              A plataforma completa para organizadores e participantes com ferramentas profissionais.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-              <Button size="lg" className="bg-white hover:bg-white/90 text-dark-blue shadow-xl border-2 border-white">
-                <FaSearch className="mr-2" />
+            
+            {/* CTAs Principais */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
+              <Button size="lg" className="btn-secondary text-lg px-8 py-4">
+                <FaSearch className="mr-3" />
                 Descobrir Eventos
               </Button>
-              <Button size="lg" className="bg-turquoise hover:bg-turquoise/90 text-white shadow-xl border-2 border-turquoise">
-                <FaRocket className="mr-2" />
+              <Button size="lg" className="btn-primary text-lg px-8 py-4">
+                <FaRocket className="mr-3" />
                 Criar Evento
               </Button>
             </div>
 
-            {/* Search Bar */}
-            <div className="max-w-2xl mx-auto">
-              <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-2xl p-4 flex flex-col lg:flex-row gap-4 border border-white/20">
+            {/* Search Bar Profissional */}
+            <div className="max-w-4xl mx-auto">
+              <div className="search-container rounded-2xl p-6 flex flex-col lg:flex-row gap-4">
                 <div className="flex-1">
                   <input
                     type="text"
                     placeholder="Buscar eventos, artistas, locais..."
-                    className="w-full px-4 py-3 border border-light-gray rounded-lg focus:ring-2 focus:ring-turquoise focus:border-transparent text-dark-gray placeholder-medium-gray"
+                    className="w-full px-6 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-turquoise focus:border-transparent text-dark-gray placeholder-medium-gray text-lg"
                   />
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <select className="px-4 py-3 border border-light-gray rounded-lg focus:ring-2 focus:ring-turquoise focus:border-transparent text-dark-gray bg-white">
-                    <option>Cidade</option>
-                    <option>São Paulo</option>
-                    <option>Rio de Janeiro</option>
-                    <option>Belo Horizonte</option>
-                  </select>
-                  <select className="px-4 py-3 border border-light-gray rounded-lg focus:ring-2 focus:ring-turquoise focus:border-transparent text-dark-gray bg-white">
-                    <option>Categoria</option>
-                    <option>Shows</option>
-                    <option>Festas</option>
-                    <option>Cursos</option>
-                    <option>Teatro</option>
-                  </select>
-                  <Button className="bg-turquoise hover:bg-turquoise/90 text-white px-6 shadow-lg">
-                    <FaSearch />
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative">
+                    <select className="w-full px-6 py-4 pr-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-turquoise focus:border-transparent text-dark-gray bg-white text-lg appearance-none cursor-pointer">
+                      <option>Cidade</option>
+                      <option>São Paulo</option>
+                      <option>Rio de Janeiro</option>
+                      <option>Belo Horizonte</option>
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <select className="w-full px-6 py-4 pr-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-turquoise focus:border-transparent text-dark-gray bg-white text-lg appearance-none cursor-pointer">
+                      <option>Categoria</option>
+                      <option>Shows</option>
+                      <option>Festas</option>
+                      <option>Cursos</option>
+                      <option>Teatro</option>
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+                  <Button className="btn-primary px-8 py-4 text-lg">
+                    <FaSearch className="mr-2" />
+                    Buscar
                   </Button>
                 </div>
               </div>
@@ -69,71 +91,71 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="py-12 md:py-20 bg-white">
+      {/* Features Section - Design Profissional */}
+      <section className="py-16 md:py-24 bg-neutral-light-gray">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-12 md:mb-16">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-dark-gray mb-4">
-              Por que escolher o Galliard?
+          <div className="text-center mb-16 md:mb-20">
+            <h2 className="heading-lg text-dark-gray mb-6">
+              Por que escolher o Ticketon?
             </h2>
-            <p className="text-lg md:text-xl text-dark-gray/80 max-w-2xl mx-auto leading-relaxed">
+            <p className="text-body-lg text-medium-gray max-w-3xl mx-auto leading-relaxed">
               Ferramentas profissionais para criar eventos de sucesso e uma experiência 
-              excepcional para seus participantes.
+              excepcional para seus participantes. Tudo que você precisa em uma plataforma.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-            <Card className="text-center hover:shadow-lg transition-shadow border-0 shadow-md">
-              <CardHeader>
-                <div className="w-16 h-16 bg-turquoise/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FaCalendarAlt className="text-2xl text-turquoise" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-10">
+            <Card className="card-professional text-center border-0 rounded-2xl p-8">
+              <CardHeader className="pb-6">
+                <div className="w-20 h-20 bg-gradient-to-br from-turquoise/20 to-turquoise/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <FaCalendarAlt className="text-3xl text-turquoise" />
                 </div>
-                <CardTitle className="text-lg md:text-xl text-dark-gray">Fácil de Usar</CardTitle>
+                <CardTitle className="text-xl font-bold text-dark-gray">Fácil de Usar</CardTitle>
               </CardHeader>
-              <CardContent>
-                <CardDescription className="text-dark-gray/70 leading-relaxed">
+              <CardContent className="pt-0">
+                <CardDescription className="text-medium-gray leading-relaxed text-body-md">
                   Crie seu evento em minutos com nossa interface intuitiva e templates profissionais.
                 </CardDescription>
               </CardContent>
             </Card>
 
-            <Card className="text-center hover:shadow-lg transition-shadow border-0 shadow-md">
-              <CardHeader>
-                <div className="w-16 h-16 bg-light-green/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FaTicketAlt className="text-2xl text-dark-blue" />
+            <Card className="card-professional text-center border-0 rounded-2xl p-8">
+              <CardHeader className="pb-6">
+                <div className="w-20 h-20 bg-gradient-to-br from-light-green/30 to-light-green/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <FaTicketAlt className="text-3xl text-dark-blue" />
                 </div>
-                <CardTitle className="text-lg md:text-xl text-dark-gray">Ingressos Digitais</CardTitle>
+                <CardTitle className="text-xl font-bold text-dark-gray">Ingressos Digitais</CardTitle>
               </CardHeader>
-              <CardContent>
-                <CardDescription className="text-dark-gray/70 leading-relaxed">
+              <CardContent className="pt-0">
+                <CardDescription className="text-medium-gray leading-relaxed text-body-md">
                   QR codes seguros, transferência de titularidade e integração com wallets digitais.
                 </CardDescription>
               </CardContent>
             </Card>
 
-            <Card className="text-center hover:shadow-lg transition-shadow border-0 shadow-md">
-              <CardHeader>
-                <div className="w-16 h-16 bg-coral/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FaMapMarkerAlt className="text-2xl text-coral" />
+            <Card className="card-professional text-center border-0 rounded-2xl p-8">
+              <CardHeader className="pb-6">
+                <div className="w-20 h-20 bg-gradient-to-br from-coral/20 to-coral/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <FaMapMarkerAlt className="text-3xl text-coral" />
                 </div>
-                <CardTitle className="text-lg md:text-xl text-dark-gray">Check-in Inteligente</CardTitle>
+                <CardTitle className="text-xl font-bold text-dark-gray">Check-in Inteligente</CardTitle>
               </CardHeader>
-              <CardContent>
-                <CardDescription className="text-dark-gray/70 leading-relaxed">
+              <CardContent className="pt-0">
+                <CardDescription className="text-medium-gray leading-relaxed text-body-md">
                   App gratuito para check-in offline com múltiplos pontos de entrada.
                 </CardDescription>
               </CardContent>
             </Card>
 
-            <Card className="text-center hover:shadow-lg transition-shadow border-0 shadow-md">
-              <CardHeader>
-                <div className="w-16 h-16 bg-turquoise/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FaChartLine className="text-2xl text-turquoise" />
+            <Card className="card-professional text-center border-0 rounded-2xl p-8">
+              <CardHeader className="pb-6">
+                <div className="w-20 h-20 bg-gradient-to-br from-turquoise/20 to-turquoise/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <FaChartLine className="text-3xl text-turquoise" />
                 </div>
-                <CardTitle className="text-lg md:text-xl text-dark-gray">Analytics Avançado</CardTitle>
+                <CardTitle className="text-xl font-bold text-dark-gray">Analytics Avançado</CardTitle>
               </CardHeader>
-              <CardContent>
-                <CardDescription className="text-dark-gray/70 leading-relaxed">
+              <CardContent className="pt-0">
+                <CardDescription className="text-medium-gray leading-relaxed text-body-md">
                   Relatórios detalhados sobre vendas, público e performance do seu evento.
                 </CardDescription>
               </CardContent>
@@ -142,92 +164,94 @@ export default function Home() {
         </div>
       </section>
 
-      {/* For Organizers Section */}
-      <section className="py-12 md:py-20 bg-light-gray/30">
+      {/* For Organizers Section - Design Profissional */}
+      <section className="py-16 md:py-24 bg-white">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             <div>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-dark-gray mb-4 md:mb-6 leading-tight">
+              <h2 className="heading-lg text-dark-gray mb-6 leading-tight">
                 Ferramentas profissionais para organizadores
               </h2>
-              <p className="text-lg md:text-xl text-dark-gray/80 mb-6 md:mb-8 leading-relaxed">
-                Desde a criação até o check-in, tudo que você precisa para um evento de sucesso.
+              <p className="text-body-lg text-medium-gray mb-8 leading-relaxed">
+                Desde a criação até o check-in, tudo que você precisa para um evento de sucesso. 
+                Plataforma completa com recursos avançados.
               </p>
               
-              <div className="space-y-4 md:space-y-6">
-                <div className="flex items-start space-x-4">
-                  <div className="w-12 h-12 bg-turquoise/10 rounded-full flex items-center justify-center flex-shrink-0">
-                    <FaUsers className="text-lg text-turquoise" />
+              <div className="space-y-6 mb-10">
+                <div className="flex items-start space-x-6">
+                  <div className="w-14 h-14 bg-gradient-to-br from-turquoise/20 to-turquoise/10 rounded-2xl flex items-center justify-center flex-shrink-0">
+                    <FaUsers className="text-xl text-turquoise" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-dark-gray mb-2">Gestão de Equipe</h3>
-                    <p className="text-dark-gray/70 leading-relaxed">
+                    <h3 className="text-xl font-bold text-dark-gray mb-3">Gestão de Equipe</h3>
+                    <p className="text-medium-gray leading-relaxed">
                       Convide colaboradores e defina permissões específicas para cada evento.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start space-x-4">
-                  <div className="w-12 h-12 bg-light-green/20 rounded-full flex items-center justify-center flex-shrink-0">
-                    <FaShieldAlt className="text-lg text-dark-blue" />
+                <div className="flex items-start space-x-6">
+                  <div className="w-14 h-14 bg-gradient-to-br from-light-green/30 to-light-green/10 rounded-2xl flex items-center justify-center flex-shrink-0">
+                    <FaShieldAlt className="text-xl text-dark-blue" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-dark-gray mb-2">Pagamentos Seguros</h3>
-                    <p className="text-dark-gray/70 leading-relaxed">
+                    <h3 className="text-xl font-bold text-dark-gray mb-3">Pagamentos Seguros</h3>
+                    <p className="text-medium-gray leading-relaxed">
                       Múltiplos métodos de pagamento com proteção total para você e seus clientes.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start space-x-4">
-                  <div className="w-12 h-12 bg-coral/10 rounded-full flex items-center justify-center flex-shrink-0">
-                    <FaTicketAlt className="text-lg text-coral" />
+                <div className="flex items-start space-x-6">
+                  <div className="w-14 h-14 bg-gradient-to-br from-coral/20 to-coral/10 rounded-2xl flex items-center justify-center flex-shrink-0">
+                    <FaTicketAlt className="text-xl text-coral" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-dark-gray mb-2">Lotes Inteligentes</h3>
-                    <p className="text-dark-gray/70 leading-relaxed">
+                    <h3 className="text-xl font-bold text-dark-gray mb-3">Lotes Inteligentes</h3>
+                    <p className="text-medium-gray leading-relaxed">
                       Configure lotes com virada automática por data ou quantidade vendida.
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-8">
-                <Button size="lg" className="bg-turquoise hover:bg-turquoise/90 text-white shadow-lg">
-                  Começar Gratuitamente
-                </Button>
-              </div>
+              <Button size="lg" className="btn-primary text-lg px-8 py-4">
+                Começar Gratuitamente
+              </Button>
             </div>
 
             <div className="relative">
-              <div className="bg-white rounded-2xl shadow-xl p-8">
-                <div className="space-y-6">
+              <div className="dashboard-card rounded-3xl p-8">
+                <div className="space-y-8">
+                  {/* Header do Dashboard */}
                   <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-turquoise/10 rounded-full flex items-center justify-center">
-                      <FaRocket className="text-lg text-turquoise" />
+                    <div className="w-12 h-12 bg-gradient-to-br from-turquoise/20 to-turquoise/10 rounded-xl flex items-center justify-center">
+                      <FaRocket className="text-xl text-turquoise" />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-dark-gray">Dashboard em Tempo Real</h4>
-                      <p className="text-sm text-medium-gray">Acompanhe vendas ao vivo</p>
+                      <h4 className="dashboard-title text-lg">Dashboard em Tempo Real</h4>
+                      <p className="dashboard-subtitle text-sm">Acompanhe vendas ao vivo</p>
                     </div>
                   </div>
                   
-                  <div className="bg-light-gray/50 rounded-lg p-4">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm font-medium text-dark-gray">Vendas Hoje</span>
-                      <span className="text-sm text-turquoise font-semibold">+23%</span>
+                  {/* Métrica Principal */}
+                  <div className="bg-gradient-to-r from-turquoise/10 to-light-green/10 rounded-2xl p-6">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="metric-label text-sm">Vendas Hoje</span>
+                      <span className="metric-percentage text-sm bg-turquoise/10 px-2 py-1 rounded-full">+23%</span>
                     </div>
-                    <div className="text-2xl font-bold text-dark-gray">R$ 12.450</div>
+                    <div className="metric-value text-3xl">R$ 12.450</div>
                   </div>
 
+                  {/* Métricas Secundárias */}
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-turquoise">156</div>
-                      <div className="text-sm text-medium-gray">Ingressos Vendidos</div>
+                    <div className="bg-light-gray/30 rounded-xl p-4 text-center">
+                      <div className="metric-secondary-value text-2xl mb-1">156</div>
+                      <div className="metric-label text-sm">Ingressos Vendidos</div>
                     </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-dark-blue">89%</div>
-                      <div className="text-sm text-medium-gray">Taxa de Check-in</div>
+                    <div className="bg-light-gray/30 rounded-xl p-4 text-center">
+                      <div className="metric-value text-2xl mb-1 text-dark-blue">89%</div>
+                      <div className="metric-label text-sm">Taxa de Check-in</div>
                     </div>
                   </div>
                 </div>
@@ -238,7 +262,7 @@ export default function Home() {
       </section>
 
       {/* Featured Events Carousel */}
-      <section className="py-12 md:py-16 bg-light-gray/30">
+      <section className="py-12 md:py-16 bg-white">
         <div className="container mx-auto px-4">
           <Carousel 
             title="Eventos em Destaque" 
@@ -265,21 +289,28 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-12 md:py-20 bg-dark-blue">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4 md:mb-6 leading-tight">
+      {/* CTA Section - Design Profissional */}
+      <section className="py-20 md:py-28 bg-dark-blue relative overflow-hidden">
+        {/* Elementos decorativos */}
+        <div className="absolute top-0 left-0 w-full h-full">
+          <div className="absolute top-20 left-20 w-64 h-64 bg-turquoise/10 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-20 right-20 w-80 h-80 bg-light-green/10 rounded-full blur-3xl"></div>
+        </div>
+        
+        <div className="container mx-auto px-4 text-center relative z-10">
+          <h2 className="heading-lg text-white mb-6 leading-tight">
             Pronto para criar seu próximo evento?
           </h2>
-          <p className="text-lg md:text-xl text-light-green/90 mb-6 md:mb-8 max-w-2xl mx-auto leading-relaxed">
-            Junte-se a milhares de organizadores que já confiam no Galliard para criar eventos inesquecíveis.
+          <p className="text-body-lg text-light-green/90 mb-10 max-w-3xl mx-auto leading-relaxed">
+            Junte-se a milhares de organizadores que já confiam no Ticketon para criar eventos inesquecíveis. 
+            Comece hoje mesmo e transforme suas ideias em realidade.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" className="bg-turquoise hover:bg-turquoise/90 text-white shadow-lg">
-              <FaRocket className="mr-2" />
+          <div className="flex flex-col sm:flex-row gap-6 justify-center">
+            <Button size="lg" className="btn-primary text-lg px-10 py-5">
+              <FaRocket className="mr-3" />
               Criar Meu Primeiro Evento
             </Button>
-            <Button variant="outline" size="lg" className="border-light-green text-light-green hover:bg-light-green hover:text-dark-blue bg-transparent shadow-lg">
+            <Button size="lg" className="btn-outline text-lg px-10 py-5">
               Falar com Especialista
             </Button>
           </div>

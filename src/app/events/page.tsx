@@ -253,74 +253,79 @@ export default function EventsPage() {
         {/* Events Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {events.map((event) => (
-            <Card key={event.id} className="hover:shadow-lg transition-shadow cursor-pointer group">
+            <Card key={event.id} className="hover:shadow-xl transition-all duration-300 group cursor-pointer border border-gray-200 hover:border-turquoise/30 bg-white overflow-hidden">
               <div className="relative">
-                <div className="aspect-video bg-light-gray rounded-t-lg flex items-center justify-center">
-                  <span className="text-4xl">{getCategoryIcon(event.category)}</span>
-                </div>
-                {event.featured && (
-                  <div className="absolute top-3 left-3 bg-turquoise text-white px-2 py-1 rounded-full text-xs font-semibold">
-                    Destaque
+                <div className="aspect-video bg-gradient-to-br from-turquoise/10 via-light-green/5 to-turquoise/5 rounded-t-lg flex items-center justify-center relative overflow-hidden">
+                  <span className="text-5xl opacity-80">{getCategoryIcon(event.category)}</span>
+                  {event.featured && (
+                    <div className="absolute top-3 left-3 bg-turquoise text-white px-3 py-1.5 rounded-full text-xs font-semibold shadow-md">
+                      Destaque
+                    </div>
+                  )}
+                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="w-8 h-8 bg-white/95 hover:bg-white text-gray-600 hover:text-turquoise shadow-md hover:shadow-lg transition-all"
+                    >
+                      <FaHeart className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="w-8 h-8 bg-white/95 hover:bg-white text-gray-600 hover:text-turquoise shadow-md hover:shadow-lg transition-all"
+                    >
+                      <FaShare className="w-4 h-4" />
+                    </Button>
                   </div>
-                )}
-                <div className="absolute top-3 right-3 flex space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="w-8 h-8 bg-white/90 hover:bg-white text-medium-gray"
-                  >
-                    <FaHeart className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="w-8 h-8 bg-white/90 hover:bg-white text-medium-gray"
-                  >
-                    <FaShare className="w-4 h-4" />
-                  </Button>
                 </div>
               </div>
 
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg line-clamp-2 group-hover:text-turquoise transition-colors">
+              <CardContent className="p-5">
+                <div className="space-y-4">
+                  {/* Event Title */}
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-lg line-clamp-2 group-hover:text-turquoise transition-colors mb-3">
                       {event.title}
-                    </CardTitle>
-                    <div className="flex items-center space-x-2 mt-2">
-                      <span className="text-sm bg-light-green/20 text-dark-blue px-2 py-1 rounded-full">
+                    </h3>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm bg-turquoise/15 text-turquoise-800 px-3 py-1.5 rounded-full font-semibold">
                         {getCategoryLabel(event.category)}
                       </span>
-                      <span className="text-sm text-medium-gray">
+                      <span className="text-lg font-bold text-gray-800">
                         {event.type === 'free' ? 'Gratuito' : formatPrice(event.tickets[0]?.price || 0)}
                       </span>
                     </div>
                   </div>
-                </div>
-              </CardHeader>
 
-              <CardContent className="pt-0">
-                <div className="space-y-3">
-                  <div className="flex items-center text-sm text-medium-gray">
-                    <FaCalendarAlt className="w-4 h-4 mr-2" />
-                    {formatDate(event.date)} às {event.time}
-                  </div>
-                  
-                  <div className="flex items-center text-sm text-medium-gray">
-                    <FaMapMarkerAlt className="w-4 h-4 mr-2" />
-                    {event.location.name}, {event.location.city}
-                  </div>
-                  
-                  <div className="flex items-center text-sm text-medium-gray">
-                    <FaUsers className="w-4 h-4 mr-2" />
-                    {event.tickets[0]?.sold || 0} de {event.tickets[0]?.quantity || 0} ingressos vendidos
+                  {/* Event Details */}
+                  <div className="space-y-3 bg-gray-50/50 rounded-lg p-3">
+                    <div className="flex items-center text-sm text-gray-700">
+                      <div className="w-8 h-8 bg-turquoise/10 rounded-full flex items-center justify-center mr-3">
+                        <FaCalendarAlt className="w-4 h-4 text-turquoise" />
+                      </div>
+                      <span className="font-medium">{formatDate(event.date)} às {event.time}</span>
+                    </div>
+                    
+                    <div className="flex items-center text-sm text-gray-700">
+                      <div className="w-8 h-8 bg-turquoise/10 rounded-full flex items-center justify-center mr-3">
+                        <FaMapMarkerAlt className="w-4 h-4 text-turquoise" />
+                      </div>
+                      <span className="font-medium truncate">{event.location.name}, {event.location.city}</span>
+                    </div>
+                    
+                    <div className="flex items-center text-sm text-gray-700">
+                      <div className="w-8 h-8 bg-turquoise/10 rounded-full flex items-center justify-center mr-3">
+                        <FaUsers className="w-4 h-4 text-turquoise" />
+                      </div>
+                      <span className="font-medium">{event.tickets[0]?.sold || 0} de {event.tickets[0]?.quantity || 0} ingressos vendidos</span>
+                    </div>
                   </div>
 
-                  <div className="pt-2">
-                    <Button className="w-full bg-turquoise hover:bg-turquoise/90 text-white">
-                      Ver Detalhes
-                    </Button>
-                  </div>
+                  {/* Action Button */}
+                  <Button className="w-full bg-turquoise hover:bg-turquoise-600 text-white font-bold py-3 group-hover:shadow-lg transition-all duration-300 hover:scale-[1.02] rounded-lg">
+                    Ver Detalhes
+                  </Button>
                 </div>
               </CardContent>
             </Card>
