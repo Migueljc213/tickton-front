@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -8,196 +9,157 @@ import {
   FaCalendarAlt, 
   FaMapMarkerAlt, 
   FaQrcode, 
-  FaDownload, 
-  FaShare, 
-  FaClock,
+  FaShare,
   FaCheck,
-  FaTimes,
-  FaSearch,
-  FaFilter,
-  FaPlus
 } from 'react-icons/fa';
+import { useOrders, useAuth } from '@/hooks';
+import { eventsService } from '@/lib/api/services';
+import { formatPrice, formatLongDate, formatDateTime } from '@/lib/utils/format';
+import { STATUS_COLORS, STATUS_LABELS } from '@/lib/utils/constants';
+import type { Order, OrderItem, Event } from '@/types/api';
 
-// Mock data
-const mockTickets = [
-  {
-    id: 'TKT-001',
-    event: {
-      id: '1',
-      title: 'Festival de Música Eletrônica 2025',
-      date: '2025-03-15',
-      time: '20:00',
-      location: {
-        name: 'Parque Ibirapuera',
-        address: 'Av. Pedro Álvares Cabral, s/n - Vila Mariana',
-        city: 'São Paulo',
-        state: 'SP'
-      },
-      image: '/api/placeholder/400/200'
-    },
-    ticketType: 'Pista',
-    quantity: 2,
-    unitPrice: 120,
-    totalPrice: 240,
-    purchaseDate: '2025-01-27T10:30:00Z',
-    status: 'confirmed',
-    qrCode: 'QR_CODE_BASE64_DATA',
-    checkInDate: null
-  },
-  {
-    id: 'TKT-002',
-    event: {
-      id: '2',
-      title: 'Workshop de Marketing Digital',
-      date: '2025-02-20',
-      time: '09:00',
-      location: {
-        name: 'Centro de Convenções',
-        address: 'Rua das Flores, 123',
-        city: 'São Paulo',
-        state: 'SP'
-      },
-      image: '/api/placeholder/400/200'
-    },
-    ticketType: 'Participante',
-    quantity: 1,
-    unitPrice: 250,
-    totalPrice: 250,
-    purchaseDate: '2025-01-25T14:15:00Z',
-    status: 'confirmed',
-    qrCode: 'QR_CODE_BASE64_DATA_2',
-    checkInDate: null
-  },
-  {
-    id: 'TKT-003',
-    event: {
-      id: '3',
-      title: 'Conferência de Tecnologia',
-      date: '2025-01-10',
-      time: '08:00',
-      location: {
-        name: 'Hotel Convention',
-        address: 'Av. Paulista, 1000',
-        city: 'São Paulo',
-        state: 'SP'
-      },
-      image: '/api/placeholder/400/200'
-    },
-    ticketType: 'Participante',
-    quantity: 1,
-    unitPrice: 200,
-    totalPrice: 200,
-    purchaseDate: '2024-12-15T16:45:00Z',
-    status: 'used',
-    qrCode: 'QR_CODE_BASE64_DATA_3',
-    checkInDate: '2025-01-10T08:30:00Z'
-  }
-];
+const LOGIN_PATH = '/login';
+const EVENTS_PATH = '/events';
+
+interface TicketWithMetadata {
+  item: OrderItem;
+  order: Order;
+  event: Event;
+}
 
 export default function TicketsPage() {
-  const [tickets, setTickets] = useState(mockTickets);
+  const router = useRouter();
+  const { getUserId } = useAuth();
+  const { getOrdersByUserId, loading } = useOrders();
+  
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [orderItems, setOrderItems] = useState<OrderItem[][]>([]);
+  const [events, setEvents] = useState<{ [key: number]: Event }>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [showQRCode, setShowQRCode] = useState<string | null>(null);
+  const [showQRCode, setShowQRCode] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(price);
-  };
+  useEffect(() => {
+    const loadOrders = async () => {
+      const userId = getUserId();
+      if (!userId) {
+        router.push(LOGIN_PATH);
+        return;
+      }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', {
-      weekday: 'long',
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric'
-    });
-  };
+      try {
+        const response = await getOrdersByUserId(userId);
+        setOrders(response.orders);
+        setOrderItems(response.items || []);
+        
+        const eventPromises = response.orders.map(order => 
+          eventsService.getEventById(order.eventId)
+        );
+        const eventResults = await Promise.all(eventPromises);
+        const eventsMap: { [key: number]: Event } = {};
+        eventResults.forEach(event => {
+          eventsMap[event.id] = event;
+        });
+        setEvents(eventsMap);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro ao carregar ingressos');
+      }
+    };
 
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+    loadOrders();
+  }, [getUserId, getOrdersByUserId, router]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return 'bg-green-100 text-green-800';
-      case 'used':
-        return 'bg-blue-100 text-blue-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      case 'expired':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
+  const allTickets: TicketWithMetadata[] = orderItems.flatMap((items, orderIndex) => {
+    const order = orders[orderIndex];
+    const event = order ? events[order.eventId] : null;
+    if (!order || !event) return [];
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return 'Confirmado';
-      case 'used':
-        return 'Utilizado';
-      case 'cancelled':
-        return 'Cancelado';
-      case 'expired':
-        return 'Expirado';
-      default:
-        return status;
-    }
-  };
+    return items.map(item => ({
+      item,
+      order,
+      event,
+    }));
+  });
 
-  const filteredTickets = tickets.filter(ticket => {
-    const matchesSearch = ticket.event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         ticket.event.location.city.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = !statusFilter || ticket.status === statusFilter;
+  const filteredTickets = allTickets.filter(({ event, item }) => {
+    const matchesSearch = 
+      event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (event.city?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
+    const matchesStatus = !statusFilter || 
+      (statusFilter === 'confirmed' && !item.isCheckedIn) ||
+      (statusFilter === 'used' && item.isCheckedIn);
     return matchesSearch && matchesStatus;
   });
 
-  const upcomingTickets = filteredTickets.filter(ticket => 
-    ticket.status === 'confirmed' && new Date(ticket.event.date) > new Date()
+  const upcomingTickets = filteredTickets.filter(({ event, item }) => 
+    !item.isCheckedIn && new Date(event.eventDate) > new Date()
   );
 
-  const pastTickets = filteredTickets.filter(ticket => 
-    ticket.status === 'used' || new Date(ticket.event.date) <= new Date()
+  const pastTickets = filteredTickets.filter(({ event, item }) => 
+    item.isCheckedIn || new Date(event.eventDate) <= new Date()
   );
+
+  const totalSpent = orders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
+
+  const getStatusColor = (isCheckedIn: boolean) => {
+    return isCheckedIn
+      ? STATUS_COLORS.used
+      : STATUS_COLORS.confirmed;
+  };
+
+  const getStatusLabel = (isCheckedIn: boolean) => {
+    return isCheckedIn ? STATUS_LABELS.used : STATUS_LABELS.confirmed;
+  };
+
+  const handleToggleQRCode = (itemId: number) => {
+    setShowQRCode(showQRCode === itemId ? null : itemId);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-light-gray/30 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-medium-gray text-lg">Carregando ingressos...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-light-gray/30 flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardContent className="p-8 text-center">
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={() => router.push(EVENTS_PATH)}>
+              Voltar para Eventos
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const hasTickets = filteredTickets.length > 0;
+  const hasUpcoming = upcomingTickets.length > 0;
+  const hasPast = pastTickets.length > 0;
 
   return (
     <div className="min-h-screen bg-light-gray/30">
       <div className="container mx-auto px-4 py-8">
-        {/* Header */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-dark-gray mb-2">Meus Ingressos</h1>
             <p className="text-medium-gray">Gerencie todos os seus ingressos em um só lugar</p>
           </div>
-          <div className="flex space-x-3 mt-4 lg:mt-0">
-            <Button variant="outline" className="border-turquoise text-turquoise hover:bg-turquoise hover:text-white">
-              <FaPlus className="mr-2" />
-              Adicionar à Wallet
-            </Button>
-            <Button className="bg-turquoise hover:bg-turquoise/90 text-white">
-              <FaDownload className="mr-2" />
-              Baixar Todos
-            </Button>
-          </div>
         </div>
 
-        {/* Filters */}
         <Card className="border-0 shadow-md mb-8">
           <CardContent className="p-6">
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex-1 relative">
-                <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-medium-gray" />
+                <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-medium-gray" />
                 <input
                   type="text"
                   placeholder="Buscar por evento ou cidade..."
@@ -214,25 +176,18 @@ export default function TicketsPage() {
                 <option value="">Todos os status</option>
                 <option value="confirmed">Confirmado</option>
                 <option value="used">Utilizado</option>
-                <option value="cancelled">Cancelado</option>
-                <option value="expired">Expirado</option>
               </select>
-              <Button className="bg-turquoise hover:bg-turquoise/90 text-white">
-                <FaFilter className="mr-2" />
-                Filtrar
-              </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card className="border-0 shadow-md">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-medium-gray">Total de Ingressos</p>
-                  <p className="text-2xl font-bold text-dark-gray">{tickets.length}</p>
+                  <p className="text-2xl font-bold text-dark-gray">{allTickets.length}</p>
                 </div>
                 <div className="w-12 h-12 bg-turquoise/10 rounded-full flex items-center justify-center">
                   <FaTicketAlt className="w-6 h-6 text-turquoise" />
@@ -274,45 +229,38 @@ export default function TicketsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-medium-gray">Total Gasto</p>
-                  <p className="text-2xl font-bold text-dark-gray">
-                    {formatPrice(tickets.reduce((sum, ticket) => sum + ticket.totalPrice, 0))}
-                  </p>
+                  <p className="text-2xl font-bold text-dark-gray">{formatPrice(totalSpent)}</p>
                 </div>
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                  <FaTimes className="w-6 h-6 text-green-600" />
+                  <FaTicketAlt className="w-6 h-6 text-green-600" />
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Upcoming Events */}
-        {upcomingTickets.length > 0 && (
+        {hasUpcoming && (
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-dark-gray mb-6">Próximos Eventos</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {upcomingTickets.map((ticket) => (
-                <Card key={ticket.id} className="border-0 shadow-md hover:shadow-lg transition-shadow">
+              {upcomingTickets.map(({ item, event }) => (
+                <Card key={item.id} className="border-0 shadow-md hover:shadow-lg transition-shadow">
                   <div className="aspect-video bg-light-gray rounded-t-lg flex items-center justify-center">
                     <span className="text-4xl">🎵</span>
                   </div>
                   <CardHeader>
                     <div className="flex justify-between items-start">
                       <div>
-                        <CardTitle className="text-lg line-clamp-2">{ticket.event.title}</CardTitle>
+                        <CardTitle className="text-lg line-clamp-2">{event.title}</CardTitle>
                         <div className="flex items-center space-x-4 mt-2 text-sm text-medium-gray">
                           <div className="flex items-center">
                             <FaCalendarAlt className="w-4 h-4 mr-1" />
-                            {formatDate(ticket.event.date)}
-                          </div>
-                          <div className="flex items-center">
-                            <FaClock className="w-4 h-4 mr-1" />
-                            {ticket.event.time}
+                            {formatLongDate(event.eventDate)}
                           </div>
                         </div>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(ticket.status)}`}>
-                        {getStatusLabel(ticket.status)}
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(item.isCheckedIn)}`}>
+                        {getStatusLabel(item.isCheckedIn)}
                       </span>
                     </div>
                   </CardHeader>
@@ -320,25 +268,27 @@ export default function TicketsPage() {
                     <div className="space-y-3">
                       <div className="flex items-center text-sm text-medium-gray">
                         <FaMapMarkerAlt className="w-4 h-4 mr-2" />
-                        {ticket.event.location.city}, {ticket.event.location.state}
+                        {event.city || 'Local a definir'}
+                        {event.state && `, ${event.state}`}
                       </div>
                       
                       <div className="flex justify-between items-center">
                         <div>
-                          <p className="text-sm text-medium-gray">{ticket.quantity}x {ticket.ticketType}</p>
-                          <p className="font-semibold text-dark-gray">{formatPrice(ticket.totalPrice)}</p>
+                          <p className="text-sm text-medium-gray">
+                            {item.quantity} ingresso{item.quantity > 1 ? 's' : ''}
+                          </p>
+                          <p className="font-semibold text-dark-gray">
+                            {formatPrice(Number(item.totalPrice))}
+                          </p>
                         </div>
                         <div className="flex space-x-2">
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setShowQRCode(showQRCode === ticket.id ? null : ticket.id)}
+                            onClick={() => handleToggleQRCode(item.id)}
                             className="border-turquoise text-turquoise hover:bg-turquoise hover:text-white"
                           >
                             <FaQrcode className="w-4 h-4" />
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <FaDownload className="w-4 h-4" />
                           </Button>
                           <Button variant="outline" size="sm">
                             <FaShare className="w-4 h-4" />
@@ -346,12 +296,13 @@ export default function TicketsPage() {
                         </div>
                       </div>
 
-                      {showQRCode === ticket.id && (
+                      {showQRCode === item.id && (
                         <div className="p-4 bg-white border border-light-gray rounded-lg">
                           <div className="text-center">
                             <div className="w-24 h-24 bg-light-gray rounded-lg mx-auto mb-3 flex items-center justify-center">
-                              <span className="text-xs text-medium-gray">QR Code</span>
+                              <FaQrcode className="w-12 h-12 text-medium-gray" />
                             </div>
+                            <p className="text-xs text-medium-gray font-mono mb-2">{item.qrCode}</p>
                             <p className="text-sm text-medium-gray">
                               Mostre este QR Code na entrada do evento
                             </p>
@@ -366,13 +317,12 @@ export default function TicketsPage() {
           </div>
         )}
 
-        {/* Past Events */}
-        {pastTickets.length > 0 && (
+        {hasPast && (
           <div>
             <h2 className="text-2xl font-bold text-dark-gray mb-6">Eventos Passados</h2>
             <div className="space-y-4">
-              {pastTickets.map((ticket) => (
-                <Card key={ticket.id} className="border-0 shadow-md">
+              {pastTickets.map(({ item, event }) => (
+                <Card key={item.id} className="border-0 shadow-md">
                   <CardContent className="p-6">
                     <div className="flex items-center space-x-4">
                       <div className="w-16 h-16 bg-light-gray rounded-lg flex items-center justify-center">
@@ -381,36 +331,34 @@ export default function TicketsPage() {
                       <div className="flex-1">
                         <div className="flex justify-between items-start">
                           <div>
-                            <h3 className="font-semibold text-dark-gray">{ticket.event.title}</h3>
+                            <h3 className="font-semibold text-dark-gray">{event.title}</h3>
                             <p className="text-sm text-medium-gray">
-                              {formatDate(ticket.event.date)} às {ticket.event.time}
+                              {formatLongDate(event.eventDate)}
                             </p>
                             <p className="text-sm text-medium-gray">
-                              {ticket.event.location.city}, {ticket.event.location.state}
+                              {event.city || 'Local a definir'}
+                              {event.state && `, ${event.state}`}
                             </p>
                           </div>
                           <div className="text-right">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(ticket.status)}`}>
-                              {getStatusLabel(ticket.status)}
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(item.isCheckedIn)}`}>
+                              {getStatusLabel(item.isCheckedIn)}
                             </span>
                             <p className="text-sm text-medium-gray mt-1">
-                              {ticket.quantity}x {ticket.ticketType}
+                              {item.quantity} ingresso{item.quantity > 1 ? 's' : ''}
                             </p>
                             <p className="font-semibold text-dark-gray">
-                              {formatPrice(ticket.totalPrice)}
+                              {formatPrice(Number(item.totalPrice))}
                             </p>
                           </div>
                         </div>
-                        {ticket.checkInDate && (
+                        {item.checkedInAt && (
                           <div className="mt-2 text-sm text-medium-gray">
-                            Check-in realizado em: {formatDateTime(ticket.checkInDate)}
+                            Check-in realizado em: {formatDateTime(item.checkedInAt)}
                           </div>
                         )}
                       </div>
                       <div className="flex space-x-2">
-                        <Button variant="outline" size="sm">
-                          <FaDownload className="w-4 h-4" />
-                        </Button>
                         <Button variant="outline" size="sm">
                           <FaShare className="w-4 h-4" />
                         </Button>
@@ -423,8 +371,7 @@ export default function TicketsPage() {
           </div>
         )}
 
-        {/* Empty State */}
-        {filteredTickets.length === 0 && (
+        {!hasTickets && (
           <Card className="border-0 shadow-md">
             <CardContent className="p-12 text-center">
               <div className="w-20 h-20 bg-light-gray rounded-full flex items-center justify-center mx-auto mb-6">
@@ -432,12 +379,15 @@ export default function TicketsPage() {
               </div>
               <h3 className="text-xl font-semibold text-dark-gray mb-2">Nenhum ingresso encontrado</h3>
               <p className="text-medium-gray mb-6">
-                {searchTerm || statusFilter 
-                  ? 'Tente ajustar os filtros de busca.' 
+                {searchTerm || statusFilter
+                  ? 'Tente ajustar os filtros de busca.'
                   : 'Você ainda não possui ingressos. Que tal descobrir alguns eventos incríveis?'
                 }
               </p>
-              <Button className="bg-turquoise hover:bg-turquoise/90 text-white">
+              <Button 
+                className="bg-turquoise hover:bg-turquoise/90 text-white"
+                onClick={() => router.push(EVENTS_PATH)}
+              >
                 Descobrir Eventos
               </Button>
             </CardContent>

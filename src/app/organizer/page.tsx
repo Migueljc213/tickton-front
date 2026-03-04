@@ -416,8 +416,8 @@ export default function OrganizerPage() {
                   ))}
                 </div>
                 <p className="text-gray-700 mb-4 italic">
-                  "O Ticketon revolucionou a forma como organizamos nossos eventos. 
-                  A interface é intuitiva e as ferramentas são poderosas."
+                  &quot;O Ticketon revolucionou a forma como organizamos nossos eventos. 
+                  A interface é intuitiva e as ferramentas são poderosas.&quot;
                 </p>
                 <div className="flex items-center">
                   <div className="w-10 h-10 bg-turquoise rounded-full flex items-center justify-center mr-3">
@@ -440,8 +440,8 @@ export default function OrganizerPage() {
                   ))}
                 </div>
                 <p className="text-gray-700 mb-4 italic">
-                  "Os relatórios são incríveis! Conseguimos otimizar nossas vendas 
-                  e entender melhor nosso público."
+                  &quot;Os relatórios são incríveis! Conseguimos otimizar nossas vendas 
+                  e entender melhor nosso público.&quot;
                 </p>
                 <div className="flex items-center">
                   <div className="w-10 h-10 bg-turquoise rounded-full flex items-center justify-center mr-3">
@@ -464,8 +464,8 @@ export default function OrganizerPage() {
                   ))}
                 </div>
                 <p className="text-gray-700 mb-4 italic">
-                  "Suporte excepcional e plataforma confiável. 
-                  Recomendo para qualquer organizador de eventos."
+                  &quot;Suporte excepcional e plataforma confiável. 
+                  Recomendo para qualquer organizador de eventos.&quot;
                 </p>
                 <div className="flex items-center">
                   <div className="w-10 h-10 bg-turquoise rounded-full flex items-center justify-center mr-3">
