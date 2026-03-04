@@ -16,7 +16,7 @@ export default function Header() {
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
             <FaRocket className="text-2xl text-turquoise" />
-            <span className="text-2xl font-bold text-dark-gray">Galliard</span>
+            <span className="text-2xl font-bold text-dark-gray">Ticketon</span>
           </Link>
 
           {/* Desktop Navigation */}

@@ -124,7 +124,7 @@ export default function Sidebar({ userRole = 'participant' }: SidebarProps) {
           <div className="flex items-center space-x-2">
             <FaRocket className="text-2xl text-turquoise" />
             {!isCollapsed && (
-              <span className="text-xl font-bold text-dark-gray">Galliard</span>
+              <span className="text-xl font-bold text-dark-gray">Ticketon</span>
             )}
           </div>
           <Button

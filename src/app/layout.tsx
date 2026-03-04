@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Galliard - Plataforma de Eventos",
+  title: "Ticketon - Plataforma de Eventos",
   description: "Crie, gerencie e participe de eventos incríveis. A plataforma completa para organizadores e participantes.",
 };
 

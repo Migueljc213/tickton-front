@@ -585,7 +585,7 @@ export default function AdminDashboard() {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-dark-gray mb-2">Painel Administrativo</h1>
-            <p className="text-medium-gray">Gerencie toda a plataforma Galliard</p>
+            <p className="text-medium-gray">Gerencie toda a plataforma Ticketon</p>
           </div>
           <div className="flex items-center space-x-3">
             <select 

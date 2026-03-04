@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -14,119 +15,141 @@ import {
   FaEye,
   FaEdit,
   FaTrash,
-  FaFilter,
-  FaDownload
 } from 'react-icons/fa';
+import { useEvents, useOrders, useAuth } from '@/hooks';
+import { eventsService } from '@/lib/api/services';
+import { formatPrice, formatDate } from '@/lib/utils/format';
+import { STATUS_COLORS, STATUS_LABELS, EVENT_STATUS } from '@/lib/utils/constants';
+import type { Event, CheckInDashboardResponse } from '@/types/api';
 
-// Mock data
-const mockEvents = [
-  {
-    id: '1',
-    title: 'Festival de Música Eletrônica 2025',
-    date: '2025-03-15',
-    status: 'active',
-    ticketsSold: 915,
-    totalTickets: 1200,
-    revenue: 125400,
-    views: 2540,
-    category: 'music'
-  },
-  {
-    id: '2',
-    title: 'Workshop de Marketing Digital',
-    date: '2025-02-20',
-    status: 'active',
-    ticketsSold: 30,
-    totalTickets: 50,
-    revenue: 7500,
-    views: 450,
-    category: 'workshop'
-  },
-  {
-    id: '3',
-    title: 'Conferência de Tecnologia',
-    date: '2025-01-10',
-    status: 'completed',
-    ticketsSold: 200,
-    totalTickets: 200,
-    revenue: 40000,
-    views: 1200,
-    category: 'conference'
-  }
-];
-
-const mockStats = {
-  totalEvents: 12,
-  activeEvents: 2,
-  totalRevenue: 285900,
-  totalTicketsSold: 2150,
-  averageTicketPrice: 133,
-  conversionRate: 3.2
-};
+const LOGIN_PATH = '/login';
+const EVENTS_PATH = '/events';
 
 export default function OrganizerDashboard() {
-  const [selectedPeriod, setSelectedPeriod] = useState('30d');
-  const [events, setEvents] = useState(mockEvents);
+  const router = useRouter();
+  const { getUserId } = useAuth();
+  const { events: allEvents, loading: eventsLoading, fetchEvents } = useEvents();
+  const { getCheckInDashboard } = useOrders();
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(price);
-  };
+  const [organizerEvents, setOrganizerEvents] = useState<Event[]>([]);
+  const [stats, setStats] = useState({
+    totalEvents: 0,
+    activeEvents: 0,
+    totalRevenue: 0,
+    totalTicketsSold: 0,
+  });
+  const [eventStats, setEventStats] = useState<{ [key: number]: CheckInDashboardResponse }>({});
+  const [loading, setLoading] = useState(true);
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    });
-  };
+  useEffect(() => {
+    const loadDashboard = async () => {
+      const userId = getUserId();
+      if (!userId) {
+        router.push(LOGIN_PATH);
+        return;
+      }
+
+      setLoading(true);
+      
+      try {
+        await fetchEvents();
+        
+        const publishedEvents = allEvents.filter(e => e.isPublished);
+        setOrganizerEvents(publishedEvents);
+
+        let totalRevenue = 0;
+        let totalTicketsSold = 0;
+
+        const statsPromises = publishedEvents.map(async (event) => {
+          try {
+            const dashboard = await getCheckInDashboard(event.id);
+            totalRevenue += dashboard.revenue;
+            totalTicketsSold += dashboard.totalTickets;
+            return { eventId: event.id, stats: dashboard };
+          } catch (err) {
+            console.error(`Error loading dashboard for event ${event.id}:`, err);
+            return null;
+          }
+        });
+
+        const statsResults = await Promise.all(statsPromises);
+        const statsMap: { [key: number]: CheckInDashboardResponse } = {};
+        statsResults.forEach(result => {
+          if (result) {
+            statsMap[result.eventId] = result.stats;
+          }
+        });
+        setEventStats(statsMap);
+
+        setStats({
+          totalEvents: publishedEvents.length,
+          activeEvents: publishedEvents.filter(e => 
+            e.status === EVENT_STATUS.ACTIVE || e.status === EVENT_STATUS.PUBLISHED
+          ).length,
+          totalRevenue,
+          totalTicketsSold,
+        });
+      } catch (err) {
+        console.error('Error loading dashboard:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboard();
+  }, [getUserId, router, fetchEvents, allEvents, getCheckInDashboard]);
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-100 text-green-800';
-      case 'completed':
-        return 'bg-blue-100 text-blue-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      case 'draft':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
+    return STATUS_COLORS[status as keyof typeof STATUS_COLORS] || STATUS_COLORS.draft;
   };
 
   const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'Ativo';
-      case 'completed':
-        return 'Finalizado';
-      case 'cancelled':
-        return 'Cancelado';
-      case 'draft':
-        return 'Rascunho';
-      default:
-        return status;
+    return STATUS_LABELS[status as keyof typeof STATUS_LABELS] || status;
+  };
+
+  const handleViewEvent = (eventId: number) => {
+    router.push(`${EVENTS_PATH}/${eventId}`);
+  };
+
+  const handleEditEvent = (eventId: number) => {
+    router.push(`/organizer/events/${eventId}/edit`);
+  };
+
+  const handleDeleteEvent = async (eventId: number) => {
+    if (!confirm('Tem certeza que deseja excluir este evento?')) return;
+    try {
+      await eventsService.deleteEvent(eventId);
+      setOrganizerEvents(prev => prev.filter(e => e.id !== eventId));
+    } catch {
+      alert('Erro ao excluir evento');
     }
   };
+
+  if (loading || eventsLoading) {
+    return (
+      <DashboardLayout userRole="organizer">
+        <div className="container mx-auto flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <p className="text-medium-gray text-lg">Carregando dashboard...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const conversionRate = stats.totalEvents > 0 
+    ? ((stats.activeEvents / stats.totalEvents) * 100).toFixed(1)
+    : '0';
 
   return (
     <DashboardLayout userRole="organizer">
       <div className="container mx-auto">
-        {/* Header */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-dark-gray mb-2">Dashboard</h1>
             <p className="text-medium-gray">Gerencie seus eventos e acompanhe o desempenho</p>
           </div>
           <div className="flex space-x-3 mt-4 lg:mt-0">
-            <Button variant="outline" className="border-turquoise text-turquoise hover:bg-turquoise hover:text-white">
-              <FaFilter className="mr-2" />
-              Filtros
-            </Button>
             <Button className="bg-turquoise hover:bg-turquoise/90 text-white">
               <FaPlus className="mr-2" />
               Novo Evento
@@ -134,15 +157,13 @@ export default function OrganizerDashboard() {
           </div>
         </div>
 
-        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card className="border-0 shadow-md">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-medium-gray">Receita Total</p>
-                  <p className="text-2xl font-bold text-dark-gray">{formatPrice(mockStats.totalRevenue)}</p>
-                  <p className="text-sm text-green-600">+12% vs mês anterior</p>
+                  <p className="text-2xl font-bold text-dark-gray">{formatPrice(stats.totalRevenue)}</p>
                 </div>
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
                   <FaDollarSign className="w-6 h-6 text-green-600" />
@@ -156,8 +177,7 @@ export default function OrganizerDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-medium-gray">Ingressos Vendidos</p>
-                  <p className="text-2xl font-bold text-dark-gray">{mockStats.totalTicketsSold.toLocaleString()}</p>
-                  <p className="text-sm text-green-600">+8% vs mês anterior</p>
+                  <p className="text-2xl font-bold text-dark-gray">{stats.totalTicketsSold.toLocaleString()}</p>
                 </div>
                 <div className="w-12 h-12 bg-turquoise/10 rounded-full flex items-center justify-center">
                   <FaTicketAlt className="w-6 h-6 text-turquoise" />
@@ -171,8 +191,8 @@ export default function OrganizerDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-medium-gray">Eventos Ativos</p>
-                  <p className="text-2xl font-bold text-dark-gray">{mockStats.activeEvents}</p>
-                  <p className="text-sm text-medium-gray">de {mockStats.totalEvents} total</p>
+                  <p className="text-2xl font-bold text-dark-gray">{stats.activeEvents}</p>
+                  <p className="text-sm text-medium-gray">de {stats.totalEvents} total</p>
                 </div>
                 <div className="w-12 h-12 bg-light-green/20 rounded-full flex items-center justify-center">
                   <FaCalendarAlt className="w-6 h-6 text-dark-blue" />
@@ -186,8 +206,7 @@ export default function OrganizerDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-medium-gray">Taxa de Conversão</p>
-                  <p className="text-2xl font-bold text-dark-gray">{mockStats.conversionRate}%</p>
-                  <p className="text-sm text-green-600">+0.3% vs mês anterior</p>
+                  <p className="text-2xl font-bold text-dark-gray">{conversionRate}%</p>
                 </div>
                 <div className="w-12 h-12 bg-coral/10 rounded-full flex items-center justify-center">
                   <FaChartLine className="w-6 h-6 text-coral" />
@@ -197,115 +216,103 @@ export default function OrganizerDashboard() {
           </Card>
         </div>
 
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <Card className="border-0 shadow-md">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <FaChartLine className="mr-2 text-turquoise" />
-                Vendas dos Últimos 30 Dias
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64 bg-light-gray/30 rounded-lg flex items-center justify-center">
-                <p className="text-medium-gray">Gráfico de vendas seria renderizado aqui</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-md">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <FaUsers className="mr-2 text-turquoise" />
-                Público por Categoria
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64 bg-light-gray/30 rounded-lg flex items-center justify-center">
-                <p className="text-medium-gray">Gráfico de categorias seria renderizado aqui</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Events Table */}
         <Card className="border-0 shadow-md">
           <CardHeader>
             <div className="flex justify-between items-center">
               <CardTitle>Meus Eventos</CardTitle>
-              <div className="flex space-x-2">
-                <Button variant="outline" size="sm">
-                  <FaDownload className="mr-2" />
-                  Exportar
-                </Button>
-              </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4 font-semibold text-dark-gray">Evento</th>
-                    <th className="text-left py-3 px-4 font-semibold text-dark-gray">Data</th>
-                    <th className="text-left py-3 px-4 font-semibold text-dark-gray">Status</th>
-                    <th className="text-left py-3 px-4 font-semibold text-dark-gray">Ingressos</th>
-                    <th className="text-left py-3 px-4 font-semibold text-dark-gray">Receita</th>
-                    <th className="text-left py-3 px-4 font-semibold text-dark-gray">Visualizações</th>
-                    <th className="text-left py-3 px-4 font-semibold text-dark-gray">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {events.map((event) => (
-                    <tr key={event.id} className="border-b hover:bg-light-gray/20">
-                      <td className="py-4 px-4">
-                        <div>
-                          <p className="font-medium text-dark-gray">{event.title}</p>
-                          <p className="text-sm text-medium-gray capitalize">{event.category}</p>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 text-medium-gray">
-                        {formatDate(event.date)}
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(event.status)}`}>
-                          {getStatusLabel(event.status)}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div>
-                          <p className="font-medium text-dark-gray">{event.ticketsSold.toLocaleString()}</p>
-                          <p className="text-sm text-medium-gray">de {event.totalTickets.toLocaleString()}</p>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 font-medium text-dark-gray">
-                        {formatPrice(event.revenue)}
-                      </td>
-                      <td className="py-4 px-4 text-medium-gray">
-                        {event.views.toLocaleString()}
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex space-x-2">
-                          <Button variant="ghost" size="sm" className="p-2">
-                            <FaEye className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="p-2">
-                            <FaEdit className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="p-2 text-coral hover:text-coral">
-                            <FaTrash className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </td>
+            {organizerEvents.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-medium-gray mb-4">Nenhum evento encontrado</p>
+                <Button className="bg-turquoise hover:bg-turquoise/90 text-white">
+                  <FaPlus className="mr-2" />
+                  Criar Primeiro Evento
+                </Button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-4 font-semibold text-dark-gray">Evento</th>
+                      <th className="text-left py-3 px-4 font-semibold text-dark-gray">Data</th>
+                      <th className="text-left py-3 px-4 font-semibold text-dark-gray">Status</th>
+                      <th className="text-left py-3 px-4 font-semibold text-dark-gray">Ingressos</th>
+                      <th className="text-left py-3 px-4 font-semibold text-dark-gray">Receita</th>
+                      <th className="text-left py-3 px-4 font-semibold text-dark-gray">Ações</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {organizerEvents.map((event) => {
+                      const eventStat = eventStats[event.id];
+                      const ticketsSold = eventStat?.totalTickets || 0;
+                      const revenue = eventStat?.revenue || 0;
+
+                      return (
+                        <tr key={event.id} className="border-b hover:bg-light-gray/20">
+                          <td className="py-4 px-4">
+                            <div>
+                              <p className="font-medium text-dark-gray">{event.title}</p>
+                              <p className="text-sm text-medium-gray capitalize">{event.category}</p>
+                            </div>
+                          </td>
+                          <td className="py-4 px-4 text-medium-gray">
+                            {formatDate(event.eventDate)}
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(event.status)}`}>
+                              {getStatusLabel(event.status)}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div>
+                              <p className="font-medium text-dark-gray">{ticketsSold.toLocaleString()}</p>
+                              <p className="text-sm text-medium-gray">ingressos vendidos</p>
+                            </div>
+                          </td>
+                          <td className="py-4 px-4 font-medium text-dark-gray">
+                            {formatPrice(revenue)}
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="flex space-x-2">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="p-2"
+                                onClick={() => handleViewEvent(event.id)}
+                              >
+                                <FaEye className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="p-2"
+                                onClick={() => handleEditEvent(event.id)}
+                              >
+                                <FaEdit className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="p-2 text-coral hover:text-coral"
+                                onClick={() => handleDeleteEvent(event.id)}
+                              >
+                                <FaTrash className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Quick Actions */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="border-0 shadow-md hover:shadow-lg transition-shadow cursor-pointer">
             <CardContent className="p-6 text-center">
@@ -340,7 +347,7 @@ export default function OrganizerDashboard() {
           <Card className="border-0 shadow-md hover:shadow-lg transition-shadow cursor-pointer">
             <CardContent className="p-6 text-center">
               <div className="w-16 h-16 bg-coral/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FaDownload className="w-8 h-8 text-coral" />
+                <FaChartLine className="w-8 h-8 text-coral" />
               </div>
               <h3 className="font-semibold text-dark-gray mb-2">Relatórios</h3>
               <p className="text-sm text-medium-gray mb-4">

@@ -10,7 +10,7 @@ export default function Footer() {
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
               <FaRocket className="text-2xl text-turquoise" />
-              <span className="text-2xl font-bold">Galliard</span>
+              <span className="text-2xl font-bold">Ticketon</span>
             </div>
             <p className="text-light-green/90 text-sm">
               A plataforma completa para criar, gerenciar e participar de eventos incríveis.
@@ -88,7 +88,7 @@ export default function Footer() {
               </p>
               <p className="text-light-green/90 text-sm">
                 <strong>E-mail:</strong><br />
-                suporte@galliard.com.br
+                suporte@ticketon.com.br
               </p>
               <p className="text-light-green/90 text-sm">
                 <strong>Horário:</strong><br />
@@ -116,7 +116,7 @@ export default function Footer() {
               </Link>
             </div>
             <p className="text-sm text-light-green/80">
-              © 2025 Galliard. Todos os direitos reservados.
+              © 2025 Ticketon. Todos os direitos reservados.
             </p>
           </div>
         </div>
