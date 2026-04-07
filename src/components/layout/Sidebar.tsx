@@ -1,181 +1,135 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { 
-  FaHome, 
-  FaCalendarAlt, 
-  FaTicketAlt, 
-  FaUsers, 
-  FaChartLine, 
-  FaCog, 
-  FaBars, 
+import {
+  FaHome,
+  FaCalendarAlt,
+  FaTicketAlt,
+  FaUsers,
+  FaChartBar,
+  FaCog,
   FaTimes,
-  FaRocket,
   FaSignOutAlt,
-  FaBell
+  FaBell,
+  FaComments,
 } from 'react-icons/fa';
 
 interface SidebarProps {
   userRole?: 'participant' | 'organizer' | 'admin';
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-export default function Sidebar({ userRole = 'participant' }: SidebarProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+const NAV_ITEMS = {
+  organizer: [
+    { label: 'Dashboard',    href: '/organizer/dashboard', icon: FaHome },
+    { label: 'Eventos',      href: '/organizer/events',    icon: FaCalendarAlt },
+    { label: 'Ingressos',    href: '/tickets',             icon: FaTicketAlt },
+    { label: 'Comunidade',   href: '/organizer/community', icon: FaComments },
+    { label: 'Configurações',href: '/organizer/settings',  icon: FaCog },
+  ],
+  participant: [
+    { label: 'Dashboard',    href: '/dashboard',           icon: FaHome },
+    { label: 'Eventos',      href: '/events',              icon: FaCalendarAlt },
+    { label: 'Meus Ingressos',href: '/tickets',            icon: FaTicketAlt },
+    { label: 'Configurações',href: '/settings',            icon: FaCog },
+  ],
+  admin: [
+    { label: 'Dashboard',    href: '/admin/dashboard',     icon: FaChartBar },
+    { label: 'Usuários',     href: '/admin/users',         icon: FaUsers },
+    { label: 'Eventos',      href: '/admin/events',        icon: FaCalendarAlt },
+    { label: 'Configurações',href: '/admin/settings',      icon: FaCog },
+  ],
+};
+
+export default function Sidebar({ userRole = 'participant', isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const items = NAV_ITEMS[userRole] ?? NAV_ITEMS.participant;
 
-  const getNavigationItems = () => {
-    const baseItems = [
-      {
-        label: 'Dashboard',
-        href: '/dashboard',
-        icon: FaHome,
-        roles: ['participant', 'organizer', 'admin']
-      },
-      {
-        label: 'Eventos',
-        href: '/events',
-        icon: FaCalendarAlt,
-        roles: ['participant', 'organizer', 'admin']
-      },
-      {
-        label: 'Meus Ingressos',
-        href: '/tickets',
-        icon: FaTicketAlt,
-        roles: ['participant']
-      }
-    ];
-
-    const organizerItems = [
-      {
-        label: 'Meus Eventos',
-        href: '/organizer/events',
-        icon: FaCalendarAlt,
-        roles: ['organizer']
-      },
-      {
-        label: 'Dashboard',
-        href: '/organizer/dashboard',
-        icon: FaChartLine,
-        roles: ['organizer']
-      },
-      {
-        label: 'Participantes',
-        href: '/organizer/participants',
-        icon: FaUsers,
-        roles: ['organizer']
-      }
-    ];
-
-    const adminItems = [
-      {
-        label: 'Painel Admin',
-        href: '/admin/dashboard',
-        icon: FaChartLine,
-        roles: ['admin']
-      },
-      {
-        label: 'Gerenciar Usuários',
-        href: '/admin/users',
-        icon: FaUsers,
-        roles: ['admin']
-      },
-      {
-        label: 'Gerenciar Eventos',
-        href: '/admin/events',
-        icon: FaCalendarAlt,
-        roles: ['admin']
-      }
-    ];
-
-    return [...baseItems, ...organizerItems, ...adminItems].filter(item => 
-      item.roles.includes(userRole)
-    );
-  };
-
-  const navigationItems = getNavigationItems();
-
-  const isActive = (href: string) => {
-    if (href === '/dashboard' || href === '/organizer/dashboard' || href === '/admin/dashboard') {
-      return pathname === href;
-    }
-    return pathname.startsWith(href);
-  };
+  const isActive = (href: string) =>
+    href.endsWith('/dashboard') ? pathname === href : pathname.startsWith(href);
 
   return (
     <>
-      {/* Mobile Overlay */}
-      {!isCollapsed && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setIsCollapsed(true)}
+      {/* Mobile backdrop */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
+          onClick={onClose}
         />
       )}
 
-      {/* Sidebar */}
-      <div className={`
-        fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0
-        ${isCollapsed ? '-translate-x-full' : 'translate-x-0'}
-      `}>
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-light-gray">
-          <div className="flex items-center space-x-2">
-            <FaRocket className="text-2xl text-turquoise" />
-            {!isCollapsed && (
-              <span className="text-xl font-bold text-dark-gray">Ticketon</span>
-            )}
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="lg:hidden"
+      {/* Sidebar panel */}
+      <aside
+        className={`
+          fixed inset-y-0 left-0 z-50 flex w-64 flex-col
+          bg-[#003B4A] text-white shadow-2xl
+          transition-transform duration-300 ease-in-out
+          lg:relative lg:translate-x-0 lg:shadow-none
+          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}
+      >
+        {/* Logo */}
+        <div className="flex h-16 shrink-0 items-center justify-between px-6 border-b border-white/10">
+          <Link href="/" className="flex items-center gap-2.5 group">
+            {/* Ticket icon SVG inline for crispness */}
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#00C2A8]">
+              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-white" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22 10V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v4a2 2 0 0 1 0 4v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4a2 2 0 0 1 0-4Z"/>
+              </svg>
+            </div>
+            <span className="text-lg font-bold tracking-tight text-white">Ticketon</span>
+          </Link>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-white/50 hover:bg-white/10 hover:text-white transition-colors lg:hidden"
           >
-            <FaTimes className="w-5 h-5" />
-          </Button>
+            <FaTimes className="h-4 w-4" />
+          </button>
         </div>
 
-        {/* User Info */}
-        <div className="p-6 border-b border-light-gray">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-turquoise rounded-full flex items-center justify-center">
-              <span className="text-white font-semibold">JS</span>
-            </div>
-            {!isCollapsed && (
-              <div>
-                <p className="font-semibold text-dark-gray">João Silva</p>
-                <p className="text-sm text-medium-gray capitalize">{userRole}</p>
-              </div>
-            )}
+        {/* User card */}
+        <div className="mx-4 mt-5 mb-2 flex items-center gap-3 rounded-xl bg-white/8 px-4 py-3 border border-white/10">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#00C2A8] text-sm font-bold text-white">
+            JS
           </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-white">João Silva</p>
+            <p className="truncate text-xs text-[#A7F0E0]/70 capitalize">{userRole}</p>
+          </div>
+          <button className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#A7F0E0]/60 hover:bg-white/10 hover:text-[#A7F0E0] transition-colors relative">
+            <FaBell className="h-3.5 w-3.5" />
+            <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2 rounded-full bg-[#FF7043]" />
+          </button>
         </div>
+
+        {/* Nav label */}
+        <p className="px-6 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-white/30">
+          Menu
+        </p>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4">
-          <ul className="space-y-2">
-            {navigationItems.map((item) => {
+        <nav className="flex-1 overflow-y-auto px-3 pb-4">
+          <ul className="space-y-0.5">
+            {items.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
-              
               return (
                 <li key={item.href}>
                   <Link
                     href={item.href}
+                    onClick={onClose}
                     className={`
-                      flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors
-                      ${active 
-                        ? 'bg-turquoise/10 text-turquoise border-r-2 border-turquoise' 
-                        : 'text-medium-gray hover:bg-light-gray/50 hover:text-dark-gray'
+                      group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150
+                      ${active
+                        ? 'bg-[#00C2A8] text-white shadow-md shadow-[#00C2A8]/20'
+                        : 'text-white/60 hover:bg-white/8 hover:text-white'
                       }
                     `}
-                    onClick={() => setIsCollapsed(true)}
                   >
-                    <Icon className="w-5 h-5 flex-shrink-0" />
-                    {!isCollapsed && (
-                      <span className="font-medium">{item.label}</span>
-                    )}
+                    <Icon className={`h-4 w-4 shrink-0 transition-colors ${active ? 'text-white' : 'text-white/40 group-hover:text-white/70'}`} />
+                    {item.label}
                   </Link>
                 </li>
               );
@@ -183,41 +137,14 @@ export default function Sidebar({ userRole = 'participant' }: SidebarProps) {
           </ul>
         </nav>
 
-        {/* Bottom Actions */}
-        <div className="p-4 border-t border-light-gray space-y-2">
-          <Button
-            variant="ghost"
-            className="w-full justify-start text-medium-gray hover:text-dark-gray hover:bg-light-gray/50"
-          >
-            <FaBell className="w-5 h-5 mr-3" />
-            {!isCollapsed && <span>Notificações</span>}
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full justify-start text-medium-gray hover:text-dark-gray hover:bg-light-gray/50"
-          >
-            <FaCog className="w-5 h-5 mr-3" />
-            {!isCollapsed && <span>Configurações</span>}
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full justify-start text-medium-gray hover:text-red-600 hover:bg-red-50"
-          >
-            <FaSignOutAlt className="w-5 h-5 mr-3" />
-            {!isCollapsed && <span>Sair</span>}
-          </Button>
+        {/* Bottom actions */}
+        <div className="shrink-0 border-t border-white/10 p-3 space-y-0.5">
+          <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white/50 hover:bg-white/8 hover:text-white transition-all duration-150">
+            <FaSignOutAlt className="h-4 w-4 shrink-0" />
+            Sair
+          </button>
         </div>
-      </div>
-
-      {/* Mobile Menu Button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setIsCollapsed(false)}
-        className="fixed top-4 left-4 z-40 lg:hidden bg-white shadow-md"
-      >
-        <FaBars className="w-5 h-5" />
-      </Button>
+      </aside>
     </>
   );
 }
