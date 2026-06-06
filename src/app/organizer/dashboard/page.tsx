@@ -5,16 +5,17 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { 
-  FaPlus, 
-  FaChartLine, 
-  FaUsers, 
-  FaTicketAlt, 
+import {
+  FaPlus,
+  FaChartLine,
+  FaQrcode,
+  FaTicketAlt,
   FaCalendarAlt,
   FaDollarSign,
   FaEye,
   FaEdit,
   FaTrash,
+  FaUserCog,
 } from 'react-icons/fa';
 import { useEvents, useOrders, useAuth } from '@/hooks';
 import { eventsService } from '@/lib/api/services';
@@ -149,8 +150,16 @@ export default function OrganizerDashboard() {
             <h1 className="text-3xl font-bold text-dark-gray mb-2">Dashboard</h1>
             <p className="text-medium-gray">Gerencie seus eventos e acompanhe o desempenho</p>
           </div>
-          <div className="flex space-x-3 mt-4 lg:mt-0">
-            <Button className="bg-turquoise hover:bg-turquoise/90 text-white">
+          <div className="flex flex-wrap gap-3 mt-4 lg:mt-0">
+            <Button variant="outline" className="border-turquoise text-turquoise hover:bg-turquoise hover:text-white" onClick={() => router.push('/organizer/profile')}>
+              <FaUserCog className="mr-2" />
+              Meu Perfil
+            </Button>
+            <Button variant="outline" className="border-dark-blue text-dark-blue hover:bg-dark-blue hover:text-white" onClick={() => router.push('/organizer/checkin')}>
+              <FaQrcode className="mr-2" />
+              Portaria / Check-in
+            </Button>
+            <Button className="bg-turquoise hover:bg-turquoise/90 text-white" onClick={() => router.push('/organizer/events/new')}>
               <FaPlus className="mr-2" />
               Novo Evento
             </Button>
@@ -226,7 +235,7 @@ export default function OrganizerDashboard() {
             {organizerEvents.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-medium-gray mb-4">Nenhum evento encontrado</p>
-                <Button className="bg-turquoise hover:bg-turquoise/90 text-white">
+                <Button className="bg-turquoise hover:bg-turquoise/90 text-white" onClick={() => router.push('/organizer/events/new')}>
                   <FaPlus className="mr-2" />
                   Criar Primeiro Evento
                 </Button>
@@ -323,38 +332,38 @@ export default function OrganizerDashboard() {
               <p className="text-sm text-medium-gray mb-4">
                 Comece do zero ou use um dos nossos templates
               </p>
-              <Button className="w-full bg-turquoise hover:bg-turquoise/90 text-white">
+              <Button className="w-full bg-turquoise hover:bg-turquoise/90 text-white" onClick={() => router.push('/organizer/events/new')}>
                 Criar Evento
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-md hover:shadow-lg transition-shadow cursor-pointer">
+          <Card className="border-0 shadow-md hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push('/organizer/checkin')}>
             <CardContent className="p-6 text-center">
               <div className="w-16 h-16 bg-light-green/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FaUsers className="w-8 h-8 text-dark-blue" />
+                <FaQrcode className="w-8 h-8 text-dark-blue" />
               </div>
-              <h3 className="font-semibold text-dark-gray mb-2">Gerenciar Equipe</h3>
+              <h3 className="font-semibold text-dark-gray mb-2">Check-in / Portaria</h3>
               <p className="text-sm text-medium-gray mb-4">
-                Convide colaboradores e defina permissões
+                Valide ingressos via QR code na entrada do evento
               </p>
-              <Button variant="outline" className="w-full border-turquoise text-turquoise hover:bg-turquoise hover:text-white">
-                Gerenciar
+              <Button variant="outline" className="w-full border-turquoise text-turquoise hover:bg-turquoise hover:text-white" onClick={() => router.push('/organizer/checkin')}>
+                Abrir Portaria
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-md hover:shadow-lg transition-shadow cursor-pointer">
+          <Card className="border-0 shadow-md hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push('/organizer/profile')}>
             <CardContent className="p-6 text-center">
               <div className="w-16 h-16 bg-coral/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <FaChartLine className="w-8 h-8 text-coral" />
               </div>
-              <h3 className="font-semibold text-dark-gray mb-2">Relatórios</h3>
+              <h3 className="font-semibold text-dark-gray mb-2">Perfil & Dados Bancários</h3>
               <p className="text-sm text-medium-gray mb-4">
-                Exporte dados detalhados dos seus eventos
+                Atualize seu perfil e dados para receber pagamentos
               </p>
-              <Button variant="outline" className="w-full border-coral text-coral hover:bg-coral hover:text-white">
-                Exportar
+              <Button variant="outline" className="w-full border-coral text-coral hover:bg-coral hover:text-white" onClick={() => router.push('/organizer/profile')}>
+                Editar Perfil
               </Button>
             </CardContent>
           </Card>

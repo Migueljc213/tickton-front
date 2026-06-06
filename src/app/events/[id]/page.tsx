@@ -17,10 +17,154 @@ import {
   FaMinus,
   FaPlus,
   FaCheckCircle,
+  FaComments,
+  FaPaperPlane,
+  FaLock,
 } from 'react-icons/fa';
 import { useEvent, useTickets } from '@/hooks';
+import { useAuth } from '@/hooks';
 import { formatPrice, formatLongDate, formatTime } from '@/lib/utils/format';
 import type { Ticket } from '@/types/api';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+
+interface EventPost {
+  id: number;
+  userId: number;
+  userName: string;
+  content: string;
+  createdAt: string;
+}
+
+function MuralSection({ eventId }: { eventId: number }) {
+  const { getToken, isAuthenticated } = useAuth();
+  const [posts, setPosts] = useState<EventPost[]>([]);
+  const [content, setContent] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_URL}/event-posts/event/${eventId}`)
+      .then((r) => r.json())
+      .then((data) => setPosts(Array.isArray(data) ? data : []))
+      .catch(() => setPosts([]))
+      .finally(() => setLoading(false));
+  }, [eventId]);
+
+  const handlePost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!content.trim()) return;
+    const token = getToken();
+    if (!token) { setError('Faça login para comentar'); return; }
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/event-posts/event/${eventId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ content: content.trim() }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.message ?? 'Erro ao publicar');
+      }
+      const newPost: EventPost = await res.json();
+      setPosts((prev) => [newPost, ...prev]);
+      setContent('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao publicar');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <h2 className="text-xl font-bold text-gray-900 mb-5 flex items-center gap-2">
+        <span className="w-1 h-5 bg-turquoise rounded-full" />
+        <FaComments className="text-turquoise" />
+        Mural do Evento
+      </h2>
+
+      {/* Input */}
+      {isAuthenticated() ? (
+        <form onSubmit={handlePost} className="mb-5">
+          {error && (
+            <p className="text-red-500 text-xs mb-2">{error}</p>
+          )}
+          <div className="flex gap-3">
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Compartilhe sua experiência ou faça uma pergunta..."
+              rows={2}
+              className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-turquoise text-sm resize-none"
+            />
+            <button
+              type="submit"
+              disabled={submitting || !content.trim()}
+              className="px-4 py-2 text-white rounded-xl font-semibold flex items-center gap-2 disabled:opacity-50 transition-all hover:opacity-90 shrink-0"
+              style={{ backgroundColor: '#00C2A8' }}
+            >
+              <FaPaperPlane className="text-xs" />
+              {submitting ? '...' : 'Postar'}
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-1.5">
+            Apenas participantes com ingressos podem comentar.
+          </p>
+        </form>
+      ) : (
+        <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 rounded-xl px-4 py-3 mb-5">
+          <FaLock className="text-gray-400" />
+          <span>Faça login para participar do mural do evento.</span>
+        </div>
+      )}
+
+      {/* Posts */}
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2].map((i) => (
+            <div key={i} className="animate-pulse flex gap-3">
+              <div className="w-8 h-8 bg-gray-200 rounded-full shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 bg-gray-200 rounded w-1/4" />
+                <div className="h-3 bg-gray-200 rounded w-3/4" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : posts.length === 0 ? (
+        <div className="text-center py-8 text-gray-400">
+          <FaComments className="text-4xl mx-auto mb-2 opacity-30" />
+          <p className="text-sm">Nenhum comentário ainda. Seja o primeiro!</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {posts.map((post) => (
+            <div key={post.id} className="flex gap-3">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                style={{ backgroundColor: '#00C2A8' }}>
+                {post.userName.charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 bg-gray-50 rounded-xl px-4 py-3">
+                <div className="flex justify-between items-start mb-1">
+                  <span className="text-xs font-semibold text-gray-700">{post.userName}</span>
+                  <span className="text-xs text-gray-400">
+                    {new Date(post.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-700 leading-relaxed">{post.content}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const CHECKOUT_PATH = '/checkout';
 const EVENTS_PATH   = '/events';
@@ -260,6 +404,9 @@ export default function EventDetailsPage() {
                 </p>
               </div>
             )}
+
+            {/* Mural */}
+            {eventId && <MuralSection eventId={eventId} />}
           </div>
 
           {/* ---- Sidebar de ingressos ---- */}

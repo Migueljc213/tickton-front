@@ -36,6 +36,10 @@ export const useAuth = () => {
     return apiClient.getUserId();
   }, []);
 
+  const getToken = useCallback(() => {
+    return apiClient.getToken();
+  }, []);
+
   return {
     isAuthenticated,
     loading,
@@ -43,5 +47,6 @@ export const useAuth = () => {
     login,
     logout,
     getUserId,
+    getToken,
   };
 };

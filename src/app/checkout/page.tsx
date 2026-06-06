@@ -7,16 +7,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   FaArrowLeft,
   FaLock,
-  FaCreditCard,
-  FaQrcode,
   FaCheck,
   FaTicketAlt,
   FaCalendarAlt,
+  FaShoppingCart,
+  FaExternalLinkAlt,
 } from 'react-icons/fa';
-import { useEvent, useTickets, useOrders, useAuth } from '@/hooks';
+import { useEvent, useTickets, useAuth } from '@/hooks';
 import { formatPrice, formatLongDate } from '@/lib/utils/format';
-import { isFieldEmpty } from '@/lib/utils/validation';
 import type { Ticket } from '@/types/api';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 interface TicketSelection {
   ticketId: number;
@@ -27,142 +28,108 @@ interface TicketSelection {
 }
 
 const CHECKOUT_STEPS = [
-  { id: 'tickets', title: 'Ingressos', description: 'Selecione seus ingressos' },
-  { id: 'customer', title: 'Dados Pessoais', description: 'Informações do comprador' },
-  { id: 'payment', title: 'Pagamento', description: 'Método de pagamento' },
-  { id: 'confirmation', title: 'Confirmação', description: 'Revisar e finalizar' },
+  { id: 'tickets', title: 'Ingressos', description: 'Selecione' },
+  { id: 'review', title: 'Revisão', description: 'Confirme' },
+  { id: 'payment', title: 'Pagamento', description: 'Mercado Pago' },
 ] as const;
-
-const PAYMENT_METHODS = {
-  PIX: 'pix',
-  CREDIT_CARD: 'credit_card',
-} as const;
-
-const CHECKOUT_SUCCESS_PATH = '/checkout/success';
-const LOGIN_PATH = '/login';
 
 function CheckoutContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { getUserId } = useAuth();
-  const { createOrder, loading: orderLoading } = useOrders();
+  const { getToken } = useAuth();
 
   const eventIdParam = searchParams.get('eventId');
   const eventId = eventIdParam ? parseInt(eventIdParam, 10) : null;
-  
+
   const { event, loading: eventLoading } = useEvent(eventId);
   const { tickets, loading: ticketsLoading, fetchTickets } = useTickets(eventId || undefined);
 
   const [currentStep, setCurrentStep] = useState(0);
   const [ticketSelections, setTicketSelections] = useState<TicketSelection[]>([]);
-  const [customerInfo, setCustomerInfo] = useState({
-    customerName: '',
-    customerEmail: '',
-    customerPhone: '',
-  });
-  const [paymentMethod, setPaymentMethod] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
-    if (eventId) {
-      fetchTickets();
-    }
+    if (eventId) fetchTickets();
   }, [eventId, fetchTickets]);
 
-  const calculateTotal = () => {
-    return ticketSelections.reduce((total, selection) => total + selection.totalPrice, 0);
-  };
+  const calculateTotal = () =>
+    ticketSelections.reduce((sum, s) => sum + s.totalPrice, 0);
 
   const updateTicketSelection = (ticket: Ticket, quantity: number) => {
     if (quantity === 0) {
-      setTicketSelections(prev => prev.filter(ts => ts.ticketId !== ticket.id));
+      setTicketSelections((prev) => prev.filter((ts) => ts.ticketId !== ticket.id));
       return;
     }
-
-    const selection: TicketSelection = {
-      ticketId: ticket.id,
-      ticketName: ticket.name,
-      quantity,
-      unitPrice: Number(ticket.price),
-      totalPrice: Number(ticket.price) * quantity,
-    };
-
-    setTicketSelections(prev => {
-      const filtered = prev.filter(ts => ts.ticketId !== ticket.id);
-      return [...filtered, selection];
+    setTicketSelections((prev) => {
+      const filtered = prev.filter((ts) => ts.ticketId !== ticket.id);
+      return [
+        ...filtered,
+        {
+          ticketId: ticket.id,
+          ticketName: ticket.name,
+          quantity,
+          unitPrice: Number(ticket.price),
+          totalPrice: Number(ticket.price) * quantity,
+        },
+      ];
     });
   };
 
-  const getAvailableQuantity = (ticket: Ticket) => {
-    return ticket.quantityAvailable - ticket.quantitySold;
-  };
+  const getAvailable = (ticket: Ticket) => ticket.quantityAvailable - ticket.quantitySold;
 
-  const nextStep = () => {
-    if (currentStep < CHECKOUT_STEPS.length - 1) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const prevStep = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const handleFinalizeOrder = async () => {
-    if (!eventId) return;
-    
+  /** Cria o pedido no backend e redireciona para o Mercado Pago */
+  const handleGoToPayment = async () => {
     setError(null);
-    const userId = getUserId();
-    if (!userId) {
-      setError('Você precisa estar logado para finalizar a compra');
-      router.push(LOGIN_PATH);
+    setRedirecting(true);
+
+    const token = getToken();
+    if (!token) {
+      router.push('/login?redirect=/checkout?eventId=' + eventId);
       return;
     }
 
     try {
-      const orderData = {
-        userId,
-        eventId,
-        customerName: customerInfo.customerName,
-        customerEmail: customerInfo.customerEmail,
-        customerPhone: customerInfo.customerPhone || undefined,
-        paymentMethod: paymentMethod || undefined,
-        items: ticketSelections.map(ts => ({
-          ticketId: ts.ticketId,
-          quantity: ts.quantity,
-        })),
-      };
+      const res = await fetch(`${API_URL}/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          items: ticketSelections.map((s) => ({
+            ticketId: s.ticketId,
+            quantity: s.quantity,
+          })),
+          backUrl: window.location.origin,
+        }),
+      });
 
-      const result = await createOrder(orderData);
-      router.push(`${CHECKOUT_SUCCESS_PATH}?orderId=${result.order.id}`);
-    } catch {
-      setError('Erro ao finalizar pedido');
-    }
-  };
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message ?? 'Erro ao criar pedido');
+      }
 
-  const canProceed = () => {
-    switch (currentStep) {
-      case 0:
-        return ticketSelections.length > 0;
-      case 1:
-        return !isFieldEmpty(customerInfo.customerName) && 
-               !isFieldEmpty(customerInfo.customerEmail) && 
-               !isFieldEmpty(customerInfo.customerPhone);
-      case 2:
-        return paymentMethod !== '';
-      case 3:
-        return true;
-      default:
-        return false;
+      const data = await res.json();
+
+      // Redireciona para o checkout do Mercado Pago
+      // Em sandbox usa sandboxInitPoint; em produção usa initPoint
+      const url =
+        process.env.NODE_ENV === 'production' ? data.initPoint : data.sandboxInitPoint;
+
+      window.location.href = url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao processar pagamento');
+      setRedirecting(false);
     }
   };
 
   if (eventLoading || ticketsLoading) {
     return (
-      <div className="min-h-screen bg-light-gray/30 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-medium-gray text-lg">Carregando...</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-4 border-turquoise border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-gray-500">Carregando evento...</p>
         </div>
       </div>
     );
@@ -170,464 +137,289 @@ function CheckoutContent() {
 
   if (!event || !eventId) {
     return (
-      <div className="min-h-screen bg-light-gray/30 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <Card className="max-w-md">
           <CardContent className="p-8 text-center">
             <p className="text-red-600 mb-4">Evento não encontrado</p>
-            <Button onClick={() => router.push('/events')}>
-              Voltar para Eventos
-            </Button>
+            <Button onClick={() => router.push('/events')}>Voltar para Eventos</Button>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const renderStepContent = () => {
-    switch (currentStep) {
-      case 0:
-        return (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold text-dark-gray mb-2">Selecionar Ingressos</h2>
-              <p className="text-medium-gray">Escolha os ingressos para o evento</p>
-            </div>
+  /* ── STEP 0: seleção de ingressos ── */
+  const renderStep0 = () => (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-800 mb-1">Selecione seus ingressos</h2>
+        <p className="text-gray-500">{event.title}</p>
+      </div>
 
-            <div className="space-y-4">
-              {tickets.length === 0 ? (
-                <p className="text-medium-gray text-center py-8">Nenhum ingresso disponível</p>
-              ) : (
-                tickets.map((ticket) => {
-                  const available = getAvailableQuantity(ticket);
-                  const selectedQuantity = ticketSelections.find(ts => ts.ticketId === ticket.id)?.quantity || 0;
-                  const isSoldOut = available <= 0 || !ticket.isActive;
+      {tickets.length === 0 ? (
+        <p className="text-gray-500 text-center py-12">Nenhum ingresso disponível</p>
+      ) : (
+        tickets.map((ticket) => {
+          const available = getAvailable(ticket);
+          const selected = ticketSelections.find((ts) => ts.ticketId === ticket.id)?.quantity ?? 0;
+          const soldOut = available <= 0 || !ticket.isActive;
 
-                  return (
-                    <Card key={ticket.id} className="border border-light-gray">
-                      <CardContent className="p-6">
-                        <div className="flex justify-between items-start mb-4">
-                          <div className="flex-1">
-                            <h3 className="text-xl font-semibold text-dark-gray">{ticket.name}</h3>
-                            {ticket.description && (
-                              <p className="text-medium-gray mt-1">{ticket.description}</p>
-                            )}
-                            <div className="mt-3">
-                              <div className="flex items-center space-x-4">
-                                <div>
-                                  <span className="text-2xl font-bold text-turquoise">
-                                    {formatPrice(Number(ticket.price))}
-                                  </span>
-                                </div>
-                                <div className="text-sm text-medium-gray">
-                                  {isSoldOut ? 'Esgotado' : `${available} disponível${available !== 1 ? 'is' : ''}`}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+          return (
+            <Card key={ticket.id} className={`transition-all ${selected > 0 ? 'ring-2 ring-[#00C2A8]' : ''}`}>
+              <CardContent className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-lg font-semibold text-gray-800">{ticket.name}</h3>
+                      {soldOut && (
+                        <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Esgotado</span>
+                      )}
+                    </div>
+                    {ticket.description && (
+                      <p className="text-sm text-gray-500 mb-2">{ticket.description}</p>
+                    )}
+                    <span className="text-2xl font-bold" style={{ color: '#00C2A8' }}>
+                      {formatPrice(Number(ticket.price))}
+                    </span>
+                    {!soldOut && (
+                      <span className="text-xs text-gray-400 ml-3">{available} disponíveis</span>
+                    )}
+                  </div>
+                </div>
 
-                        {!isSoldOut && (
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => updateTicketSelection(ticket, Math.max(0, selectedQuantity - 1))}
-                                disabled={selectedQuantity <= 0}
-                              >
-                                -
-                              </Button>
-                              <span className="w-12 text-center font-medium">{selectedQuantity}</span>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => updateTicketSelection(ticket, Math.min(available, selectedQuantity + 1))}
-                                disabled={selectedQuantity >= available}
-                              >
-                                +
-                              </Button>
-                            </div>
-                            {selectedQuantity > 0 && (
-                              <div className="text-right">
-                                <div className="text-lg font-semibold text-dark-gray">
-                                  {formatPrice(Number(ticket.price) * selectedQuantity)}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        );
+                {!soldOut && (
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => updateTicketSelection(ticket, Math.max(0, selected - 1))}
+                        disabled={selected <= 0}
+                        className="w-9 h-9 rounded-full border border-gray-300 flex items-center justify-center text-lg font-bold disabled:opacity-40 hover:border-[#00C2A8] hover:text-[#00C2A8] transition-colors"
+                      >
+                        −
+                      </button>
+                      <span className="w-8 text-center font-semibold text-gray-800">{selected}</span>
+                      <button
+                        onClick={() => updateTicketSelection(ticket, Math.min(available, ticket.maxPerOrder, selected + 1))}
+                        disabled={selected >= Math.min(available, ticket.maxPerOrder)}
+                        className="w-9 h-9 rounded-full border border-gray-300 flex items-center justify-center text-lg font-bold disabled:opacity-40 hover:border-[#00C2A8] hover:text-[#00C2A8] transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
+                    {selected > 0 && (
+                      <span className="text-gray-600 font-medium">
+                        = {formatPrice(Number(ticket.price) * selected)}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })
+      )}
+    </div>
+  );
 
-      case 1:
-        return (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold text-dark-gray mb-2">Dados Pessoais</h2>
-              <p className="text-medium-gray">Informações do comprador dos ingressos</p>
-            </div>
+  /* ── STEP 1: revisão e confirmação ── */
+  const renderStep1 = () => (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-800 mb-1">Revisar pedido</h2>
+        <p className="text-gray-500">Confirme os ingressos antes de pagar</p>
+      </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-dark-gray mb-2">
-                  Nome Completo *
-                </label>
-                <input
-                  type="text"
-                  value={customerInfo.customerName}
-                  onChange={(e) => setCustomerInfo(prev => ({ ...prev, customerName: e.target.value }))}
-                  className="w-full px-4 py-3 border border-light-gray rounded-lg focus:ring-2 focus:ring-turquoise focus:border-transparent"
-                  placeholder="Seu nome completo"
-                  required
-                />
-              </div>
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FaCalendarAlt className="text-[#00C2A8]" />
+            {event.title}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <p className="text-sm text-gray-500">{formatLongDate(event.eventDate)}</p>
+          {event.venueName && <p className="text-sm text-gray-500">{event.venueName}</p>}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FaTicketAlt className="text-[#00C2A8]" />
+            Ingressos
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0 space-y-3">
+          {ticketSelections.map((s) => (
+            <div key={s.ticketId} className="flex justify-between items-center py-2 border-b last:border-0">
               <div>
-                <label className="block text-sm font-medium text-dark-gray mb-2">
-                  E-mail *
-                </label>
-                <input
-                  type="email"
-                  value={customerInfo.customerEmail}
-                  onChange={(e) => setCustomerInfo(prev => ({ ...prev, customerEmail: e.target.value }))}
-                  className="w-full px-4 py-3 border border-light-gray rounded-lg focus:ring-2 focus:ring-turquoise focus:border-transparent"
-                  placeholder="seu@email.com"
-                  required
-                />
+                <p className="font-medium text-gray-800">{s.ticketName}</p>
+                <p className="text-sm text-gray-500">{s.quantity}x {formatPrice(s.unitPrice)}</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-dark-gray mb-2">
-                  Telefone *
-                </label>
-                <input
-                  type="tel"
-                  value={customerInfo.customerPhone}
-                  onChange={(e) => setCustomerInfo(prev => ({ ...prev, customerPhone: e.target.value }))}
-                  className="w-full px-4 py-3 border border-light-gray rounded-lg focus:ring-2 focus:ring-turquoise focus:border-transparent"
-                  placeholder="(11) 99999-9999"
-                  required
-                />
-              </div>
+              <span className="font-semibold text-gray-800">{formatPrice(s.totalPrice)}</span>
             </div>
-
-            <div className="bg-light-green/20 rounded-lg p-4">
-              <h3 className="font-semibold text-dark-gray mb-2">Importante:</h3>
-              <ul className="text-sm text-medium-gray space-y-1">
-                <li>• Os dados informados serão utilizados para emissão dos ingressos</li>
-                <li>• Você receberá a confirmação por e-mail</li>
-              </ul>
-            </div>
+          ))}
+          <div className="flex justify-between items-center pt-2">
+            <span className="font-bold text-gray-800">Total</span>
+            <span className="text-xl font-bold" style={{ color: '#00C2A8' }}>
+              {formatPrice(calculateTotal())}
+            </span>
           </div>
-        );
+        </CardContent>
+      </Card>
 
-      case 2:
-        return (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold text-dark-gray mb-2">Método de Pagamento</h2>
-              <p className="text-medium-gray">Escolha como deseja pagar seus ingressos</p>
-            </div>
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+        <p className="font-medium mb-1">Pagamento via Mercado Pago</p>
+        <p>Você será redirecionado para o ambiente seguro do Mercado Pago onde poderá pagar com PIX, cartão de crédito/débito ou boleto.</p>
+      </div>
 
-            <div className="space-y-4">
-              <Card
-                className={`cursor-pointer transition-all ${
-                  paymentMethod === PAYMENT_METHODS.PIX
-                    ? 'ring-2 ring-turquoise border-turquoise'
-                    : 'hover:shadow-md'
-                }`}
-                onClick={() => setPaymentMethod(PAYMENT_METHODS.PIX)}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-turquoise/10 rounded-lg flex items-center justify-center">
-                      <FaQrcode className="w-6 h-6 text-turquoise" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-dark-gray">PIX</h3>
-                      <p className="text-sm text-medium-gray">Pagamento instantâneo</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card
-                className={`cursor-pointer transition-all ${
-                  paymentMethod === PAYMENT_METHODS.CREDIT_CARD
-                    ? 'ring-2 ring-turquoise border-turquoise'
-                    : 'hover:shadow-md'
-                }`}
-                onClick={() => setPaymentMethod(PAYMENT_METHODS.CREDIT_CARD)}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-light-green/20 rounded-lg flex items-center justify-center">
-                      <FaCreditCard className="w-6 h-6 text-dark-blue" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-dark-gray">Cartão de Crédito</h3>
-                      <p className="text-sm text-medium-gray">Parcelamento disponível</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        );
-
-      case 3:
-        return (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold text-dark-gray mb-2">Confirmação</h2>
-              <p className="text-medium-gray">Revise seus dados antes de finalizar a compra</p>
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                {error}
-              </div>
-            )}
-
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <FaCalendarAlt className="mr-2 text-turquoise" />
-                    Resumo do Evento
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex space-x-4">
-                    <div className="w-20 h-20 bg-light-gray rounded-lg flex items-center justify-center">
-                      <span className="text-2xl">🎵</span>
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-dark-gray">{event.title}</h3>
-                      <p className="text-sm text-medium-gray">{formatLongDate(event.eventDate)}</p>
-                      <p className="text-sm text-medium-gray">
-                        {event.venueName || event.city || 'Local a definir'}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <FaTicketAlt className="mr-2 text-turquoise" />
-                    Ingressos Selecionados
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {ticketSelections.map((selection) => (
-                      <div key={selection.ticketId} className="flex justify-between items-center py-3 border-b last:border-b-0">
-                        <div>
-                          <h4 className="font-medium text-dark-gray">{selection.ticketName}</h4>
-                          <p className="text-sm text-medium-gray">
-                            {selection.quantity}x {formatPrice(selection.unitPrice)}
-                          </p>
-                        </div>
-                        <div className="font-semibold text-dark-gray">
-                          {formatPrice(selection.totalPrice)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Dados do Comprador</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-medium-gray">Nome:</span>
-                      <p className="font-medium text-dark-gray">{customerInfo.customerName}</p>
-                    </div>
-                    <div>
-                      <span className="text-medium-gray">E-mail:</span>
-                      <p className="font-medium text-dark-gray">{customerInfo.customerEmail}</p>
-                    </div>
-                    <div>
-                      <span className="text-medium-gray">Telefone:</span>
-                      <p className="font-medium text-dark-gray">{customerInfo.customerPhone}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-light-green/20">
-                <CardContent className="p-6">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-lg">
-                      <span className="text-dark-gray">Total:</span>
-                      <span className="font-bold text-dark-gray">{formatPrice(calculateTotal())}</span>
-                    </div>
-                    <p className="text-sm text-medium-gray">
-                      Pagamento via {paymentMethod === PAYMENT_METHODS.PIX ? 'PIX' : 'Cartão de Crédito'}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        );
-
-      default:
-        return null;
-    }
-  };
+      <Button
+        className="w-full text-white py-4 text-lg font-semibold rounded-xl flex items-center justify-center gap-2"
+        style={{ backgroundColor: '#00C2A8' }}
+        onClick={handleGoToPayment}
+        disabled={redirecting}
+      >
+        {redirecting ? (
+          <>
+            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            Redirecionando...
+          </>
+        ) : (
+          <>
+            <FaExternalLinkAlt />
+            Ir para Pagamento
+          </>
+        )}
+      </Button>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-light-gray/30">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center space-x-4 mb-8">
-          <Button
-            variant="ghost"
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-4 py-8 max-w-5xl">
+        {/* Header */}
+        <div className="flex items-center gap-4 mb-8">
+          <button
             onClick={() => router.back()}
-            className="text-medium-gray hover:text-turquoise"
+            className="text-gray-500 hover:text-[#00C2A8] transition-colors flex items-center gap-2"
           >
-            <FaArrowLeft className="mr-2" />
-            Voltar
-          </Button>
+            <FaArrowLeft /> Voltar
+          </button>
           <div>
-            <h1 className="text-3xl font-bold text-dark-gray">Finalizar Compra</h1>
-            <p className="text-medium-gray">Complete sua compra de forma segura</p>
+            <h1 className="text-2xl font-bold text-gray-800">Finalizar Compra</h1>
+            <p className="text-gray-500 text-sm">Pagamento seguro via Mercado Pago</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
-            <div className="mb-8">
-              <div className="flex items-center justify-between">
-                {CHECKOUT_STEPS.map((step, index) => (
-                  <div key={step.id} className="flex items-center">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${
-                        index < currentStep
-                          ? 'bg-turquoise text-white'
-                          : index === currentStep
-                          ? 'bg-turquoise/20 text-turquoise border-2 border-turquoise'
-                          : 'bg-light-gray text-medium-gray'
-                      }`}
-                    >
-                      {index < currentStep ? <FaCheck className="w-5 h-5" /> : index + 1}
-                    </div>
-                    {index < CHECKOUT_STEPS.length - 1 && (
-                      <div
-                        className={`w-16 h-1 mx-2 ${
-                          index < currentStep ? 'bg-turquoise' : 'bg-light-gray'
-                        }`}
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-between mt-4">
-                {CHECKOUT_STEPS.map((step, index) => (
-                  <div key={step.id} className="text-center">
-                    <p
-                      className={`text-sm font-medium ${
-                        index <= currentStep ? 'text-dark-gray' : 'text-medium-gray'
-                      }`}
-                    >
-                      {step.title}
-                    </p>
-                    <p className="text-xs text-medium-gray">{step.description}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <Card className="border-0 shadow-md">
-              <CardContent className="p-8">{renderStepContent()}</CardContent>
-            </Card>
-
-            <div className="flex justify-between mt-6">
-              <Button
-                variant="outline"
-                onClick={prevStep}
-                disabled={currentStep === 0}
-                className="border-turquoise text-turquoise hover:bg-turquoise hover:text-white"
-              >
-                Anterior
-              </Button>
-              <Button
-                onClick={currentStep === CHECKOUT_STEPS.length - 1 ? handleFinalizeOrder : nextStep}
-                disabled={!canProceed() || orderLoading}
-                className="bg-turquoise hover:bg-turquoise/90 text-white"
-              >
-                {orderLoading
-                  ? 'Processando...'
-                  : currentStep === CHECKOUT_STEPS.length - 1
-                  ? 'Finalizar Compra'
-                  : 'Continuar'}
-              </Button>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <Card className="border-0 shadow-md sticky top-8">
-              <CardHeader>
-                <CardTitle>Resumo do Pedido</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex space-x-3">
-                    <div className="w-16 h-16 bg-light-gray rounded-lg flex items-center justify-center">
-                      <span className="text-xl">🎵</span>
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-dark-gray text-sm">{event.title}</h3>
-                      <p className="text-xs text-medium-gray">{formatLongDate(event.eventDate)}</p>
-                      <p className="text-xs text-medium-gray">{event.city || ''}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    {ticketSelections.map((selection) => (
-                      <div key={selection.ticketId} className="flex justify-between text-sm">
-                        <span className="text-medium-gray">
-                          {selection.quantity}x {selection.ticketName}
-                        </span>
-                        <span className="text-dark-gray font-medium">
-                          {formatPrice(selection.totalPrice)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="pt-4 border-t">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-dark-gray">Total:</span>
-                      <span className="text-xl font-bold text-turquoise">
-                        {formatPrice(calculateTotal())}
-                      </span>
-                    </div>
-                  </div>
+        {/* Step indicator */}
+        <div className="flex items-center justify-center mb-8">
+          {CHECKOUT_STEPS.map((step, index) => (
+            <div key={step.id} className="flex items-center">
+              <div className="flex flex-col items-center">
+                <div
+                  className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
+                    index < currentStep
+                      ? 'text-white'
+                      : index === currentStep
+                      ? 'border-2 text-[#00C2A8] border-[#00C2A8]'
+                      : 'bg-gray-100 text-gray-400'
+                  }`}
+                  style={index < currentStep ? { backgroundColor: '#00C2A8' } : {}}
+                >
+                  {index < currentStep ? <FaCheck className="w-4 h-4" /> : index + 1}
                 </div>
+                <span className={`text-xs mt-1 font-medium ${index <= currentStep ? 'text-gray-700' : 'text-gray-400'}`}>
+                  {step.title}
+                </span>
+              </div>
+              {index < CHECKOUT_STEPS.length - 1 && (
+                <div className={`w-16 h-0.5 mx-2 mb-4 ${index < currentStep ? 'bg-[#00C2A8]' : 'bg-gray-200'}`} />
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main content */}
+          <div className="lg:col-span-2">
+            <Card className="shadow-sm border-0">
+              <CardContent className="p-8">
+                {currentStep === 0 && renderStep0()}
+                {currentStep === 1 && renderStep1()}
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-md">
-              <CardContent className="p-6">
-                <div className="flex items-start space-x-3">
-                  <FaLock className="w-5 h-5 text-turquoise mt-0.5" />
-                  <div>
-                    <h3 className="font-semibold text-dark-gray mb-1">Compra Segura</h3>
-                    <p className="text-sm text-medium-gray">
-                      Seus dados estão protegidos com criptografia SSL de 256 bits.
-                    </p>
-                  </div>
+            {/* Navigation */}
+            <div className="flex justify-between mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentStep((s) => Math.max(0, s - 1))}
+                disabled={currentStep === 0}
+                className="border-gray-300 text-gray-600 hover:border-[#00C2A8] hover:text-[#00C2A8]"
+              >
+                Anterior
+              </Button>
+              {currentStep < 1 && (
+                <Button
+                  onClick={() => setCurrentStep((s) => s + 1)}
+                  disabled={ticketSelections.length === 0}
+                  className="text-white"
+                  style={{ backgroundColor: '#00C2A8' }}
+                >
+                  Continuar
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Order summary sidebar */}
+          <div className="space-y-4">
+            <Card className="shadow-sm border-0 sticky top-8">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <FaShoppingCart className="text-[#00C2A8]" />
+                  Resumo
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 space-y-3">
+                <p className="font-medium text-gray-800 text-sm">{event.title}</p>
+                <p className="text-xs text-gray-500">{formatLongDate(event.eventDate)}</p>
+
+                {ticketSelections.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic py-2">Nenhum ingresso selecionado</p>
+                ) : (
+                  <>
+                    {ticketSelections.map((s) => (
+                      <div key={s.ticketId} className="flex justify-between text-sm">
+                        <span className="text-gray-500">{s.quantity}x {s.ticketName}</span>
+                        <span className="font-medium text-gray-800">{formatPrice(s.totalPrice)}</span>
+                      </div>
+                    ))}
+                    <div className="border-t pt-3 flex justify-between">
+                      <span className="font-bold text-gray-800">Total</span>
+                      <span className="font-bold text-lg" style={{ color: '#00C2A8' }}>
+                        {formatPrice(calculateTotal())}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm border-0">
+              <CardContent className="p-4 flex items-start gap-3">
+                <FaLock className="text-[#00C2A8] mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium text-gray-800 text-sm">Compra 100% Segura</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Pagamento processado pelo Mercado Pago com criptografia SSL.
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -640,7 +432,11 @@ function CheckoutContent() {
 
 export default function CheckoutPage() {
   return (
-    <Suspense fallback={<div>Carregando...</div>}>
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-[#00C2A8] border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
       <CheckoutContent />
     </Suspense>
   );

@@ -2,125 +2,110 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  FaTicketAlt, 
-  FaCalendarAlt, 
-  FaMapMarkerAlt, 
-  FaQrcode, 
-  FaShare,
-  FaCheck,
+import { QRCodeSVG } from 'qrcode.react';
+import {
+  FaTicketAlt,
+  FaCalendarAlt,
+  FaSearch,
+  FaQrcode,
+  FaCheckCircle,
+  FaTimesCircle,
+  FaClock,
 } from 'react-icons/fa';
-import { useOrders, useAuth } from '@/hooks';
-import { eventsService } from '@/lib/api/services';
-import { formatPrice, formatLongDate, formatDateTime } from '@/lib/utils/format';
-import { STATUS_COLORS, STATUS_LABELS } from '@/lib/utils/constants';
-import type { Order, OrderItem, Event } from '@/types/api';
+import { useAuth } from '@/hooks';
+import { apiClient } from '@/lib/api';
 
-const LOGIN_PATH = '/login';
-const EVENTS_PATH = '/events';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
-interface TicketWithMetadata {
-  item: OrderItem;
-  order: Order;
-  event: Event;
+interface PurchasedTicket {
+  id: number;
+  orderId: number;
+  ticketId: number;
+  userId: number;
+  qrCode: string;
+  status: 'valid' | 'used' | 'cancelled';
+  usedAt: string | null;
+  createdAt: string;
 }
+
+function formatPrice(v: number) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+}
+
+function formatDateTime(iso: string) {
+  return new Date(iso).toLocaleString('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+const STATUS_CONFIG = {
+  valid: {
+    label: 'Válido',
+    icon: <FaCheckCircle className="text-green-500" />,
+    badge: 'bg-green-100 text-green-700',
+  },
+  used: {
+    label: 'Utilizado',
+    icon: <FaCheckCircle className="text-gray-400" />,
+    badge: 'bg-gray-100 text-gray-500',
+  },
+  cancelled: {
+    label: 'Cancelado',
+    icon: <FaTimesCircle className="text-red-400" />,
+    badge: 'bg-red-100 text-red-600',
+  },
+};
 
 export default function TicketsPage() {
   const router = useRouter();
-  const { getUserId } = useAuth();
-  const { getOrdersByUserId, loading } = useOrders();
-  
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [orderItems, setOrderItems] = useState<OrderItem[][]>([]);
-  const [events, setEvents] = useState<{ [key: number]: Event }>({});
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [showQRCode, setShowQRCode] = useState<number | null>(null);
+  const { getToken } = useAuth();
+
+  const [tickets, setTickets] = useState<PurchasedTicket[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'' | 'valid' | 'used' | 'cancelled'>('');
+  const [expandedQr, setExpandedQr] = useState<number | null>(null);
 
   useEffect(() => {
-    const loadOrders = async () => {
-      const userId = getUserId();
-      if (!userId) {
-        router.push(LOGIN_PATH);
-        return;
-      }
+    const token = getToken();
+    if (!token) {
+      router.push('/login?redirect=/tickets');
+      return;
+    }
 
-      try {
-        const response = await getOrdersByUserId(userId);
-        setOrders(response.orders);
-        setOrderItems(response.items || []);
-        
-        const eventPromises = response.orders.map(order => 
-          eventsService.getEventById(order.eventId)
-        );
-        const eventResults = await Promise.all(eventPromises);
-        const eventsMap: { [key: number]: Event } = {};
-        eventResults.forEach(event => {
-          eventsMap[event.id] = event;
-        });
-        setEvents(eventsMap);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erro ao carregar ingressos');
-      }
-    };
+    fetch(`${API_URL}/purchased-tickets/my`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Falha ao carregar ingressos');
+        return res.json() as Promise<PurchasedTicket[]>;
+      })
+      .then(setTickets)
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [getToken, router]);
 
-    loadOrders();
-  }, [getUserId, getOrdersByUserId, router]);
-
-  const allTickets: TicketWithMetadata[] = orderItems.flatMap((items, orderIndex) => {
-    const order = orders[orderIndex];
-    const event = order ? events[order.eventId] : null;
-    if (!order || !event) return [];
-
-    return items.map(item => ({
-      item,
-      order,
-      event,
-    }));
+  const filtered = tickets.filter((t) => {
+    const matchStatus = !statusFilter || t.status === statusFilter;
+    const matchSearch =
+      !search ||
+      t.qrCode.toLowerCase().includes(search.toLowerCase()) ||
+      String(t.orderId).includes(search) ||
+      String(t.ticketId).includes(search);
+    return matchStatus && matchSearch;
   });
 
-  const filteredTickets = allTickets.filter(({ event, item }) => {
-    const matchesSearch = 
-      event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (event.city?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
-    const matchesStatus = !statusFilter || 
-      (statusFilter === 'confirmed' && !item.isCheckedIn) ||
-      (statusFilter === 'used' && item.isCheckedIn);
-    return matchesSearch && matchesStatus;
-  });
-
-  const upcomingTickets = filteredTickets.filter(({ event, item }) => 
-    !item.isCheckedIn && new Date(event.eventDate) > new Date()
-  );
-
-  const pastTickets = filteredTickets.filter(({ event, item }) => 
-    item.isCheckedIn || new Date(event.eventDate) <= new Date()
-  );
-
-  const totalSpent = orders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
-
-  const getStatusColor = (isCheckedIn: boolean) => {
-    return isCheckedIn
-      ? STATUS_COLORS.used
-      : STATUS_COLORS.confirmed;
-  };
-
-  const getStatusLabel = (isCheckedIn: boolean) => {
-    return isCheckedIn ? STATUS_LABELS.used : STATUS_LABELS.confirmed;
-  };
-
-  const handleToggleQRCode = (itemId: number) => {
-    setShowQRCode(showQRCode === itemId ? null : itemId);
-  };
+  const validCount = tickets.filter((t) => t.status === 'valid').length;
+  const usedCount = tickets.filter((t) => t.status === 'used').length;
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-light-gray/30 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-medium-gray text-lg">Carregando ingressos...</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-4 border-[#00C2A8] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-gray-500">Carregando seus ingressos...</p>
         </div>
       </div>
     );
@@ -128,271 +113,196 @@ export default function TicketsPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-light-gray/30 flex items-center justify-center">
-        <Card className="max-w-md">
-          <CardContent className="p-8 text-center">
-            <p className="text-red-600 mb-4">{error}</p>
-            <Button onClick={() => router.push(EVENTS_PATH)}>
-              Voltar para Eventos
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-sm space-y-4">
+          <FaTimesCircle className="text-red-400 text-4xl mx-auto" />
+          <p className="text-gray-700 font-medium">{error}</p>
+          <button
+            onClick={() => router.push('/events')}
+            className="px-5 py-2.5 text-white rounded-lg font-medium"
+            style={{ backgroundColor: '#00C2A8' }}
+          >
+            Explorar Eventos
+          </button>
+        </div>
       </div>
     );
   }
 
-  const hasTickets = filteredTickets.length > 0;
-  const hasUpcoming = upcomingTickets.length > 0;
-  const hasPast = pastTickets.length > 0;
-
   return (
-    <div className="min-h-screen bg-light-gray/30">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-dark-gray mb-2">Meus Ingressos</h1>
-            <p className="text-medium-gray">Gerencie todos os seus ingressos em um só lugar</p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Hero */}
+      <div className="text-white py-12" style={{ background: 'linear-gradient(135deg, #003B4A, #00C2A8)' }}>
+        <div className="container mx-auto px-4 max-w-5xl">
+          <h1 className="text-3xl font-bold mb-1">Meus Ingressos</h1>
+          <p className="text-white/70">Todos os seus ingressos em um só lugar</p>
+
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-4 mt-6">
+            {[
+              { label: 'Total', value: tickets.length, icon: <FaTicketAlt /> },
+              { label: 'Válidos', value: validCount, icon: <FaCheckCircle /> },
+              { label: 'Utilizados', value: usedCount, icon: <FaClock /> },
+            ].map((stat) => (
+              <div key={stat.label} className="bg-white/10 backdrop-blur rounded-xl p-4 text-center">
+                <div className="text-white/60 mb-1 flex justify-center">{stat.icon}</div>
+                <p className="text-2xl font-bold">{stat.value}</p>
+                <p className="text-xs text-white/70">{stat.label}</p>
+              </div>
+            ))}
           </div>
         </div>
+      </div>
 
-        <Card className="border-0 shadow-md mb-8">
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1 relative">
-                <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-medium-gray" />
-                <input
-                  type="text"
-                  placeholder="Buscar por evento ou cidade..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-light-gray rounded-lg focus:ring-2 focus:ring-turquoise focus:border-transparent"
+      <div className="container mx-auto px-4 max-w-5xl py-8">
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-6">
+          <div className="relative flex-1">
+            <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por código, pedido..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#00C2A8] text-sm"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as '' | 'valid' | 'used' | 'cancelled')}
+            className="px-4 py-2.5 border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#00C2A8] text-sm text-gray-700"
+          >
+            <option value="">Todos os status</option>
+            <option value="valid">Válidos</option>
+            <option value="used">Utilizados</option>
+            <option value="cancelled">Cancelados</option>
+          </select>
+        </div>
+
+        {/* Empty state */}
+        {filtered.length === 0 && (
+          <div className="text-center py-20 bg-white rounded-2xl shadow-sm">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FaTicketAlt className="text-gray-400 text-2xl" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-700 mb-2">
+              {tickets.length === 0 ? 'Nenhum ingresso encontrado' : 'Nenhum ingresso corresponde ao filtro'}
+            </h3>
+            <p className="text-gray-500 text-sm mb-6">
+              {tickets.length === 0
+                ? 'Compre ingressos para seus eventos favoritos e eles aparecerão aqui.'
+                : 'Tente mudar os filtros de busca.'}
+            </p>
+            {tickets.length === 0 && (
+              <button
+                onClick={() => router.push('/events')}
+                className="px-6 py-2.5 text-white rounded-xl font-medium"
+                style={{ backgroundColor: '#00C2A8' }}
+              >
+                Explorar Eventos
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Tickets grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filtered.map((ticket) => {
+            const cfg = STATUS_CONFIG[ticket.status];
+            const isExpanded = expandedQr === ticket.id;
+
+            return (
+              <div
+                key={ticket.id}
+                className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition-shadow"
+              >
+                {/* Ticket header strip */}
+                <div
+                  className="h-2"
+                  style={{
+                    backgroundColor:
+                      ticket.status === 'valid'
+                        ? '#00C2A8'
+                        : ticket.status === 'used'
+                        ? '#9CA3AF'
+                        : '#EF4444',
+                  }}
                 />
-              </div>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-3 border border-light-gray rounded-lg focus:ring-2 focus:ring-turquoise focus:border-transparent"
-              >
-                <option value="">Todos os status</option>
-                <option value="confirmed">Confirmado</option>
-                <option value="used">Utilizado</option>
-              </select>
-            </div>
-          </CardContent>
-        </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card className="border-0 shadow-md">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-medium-gray">Total de Ingressos</p>
-                  <p className="text-2xl font-bold text-dark-gray">{allTickets.length}</p>
-                </div>
-                <div className="w-12 h-12 bg-turquoise/10 rounded-full flex items-center justify-center">
-                  <FaTicketAlt className="w-6 h-6 text-turquoise" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-md">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-medium-gray">Próximos Eventos</p>
-                  <p className="text-2xl font-bold text-dark-gray">{upcomingTickets.length}</p>
-                </div>
-                <div className="w-12 h-12 bg-light-green/20 rounded-full flex items-center justify-center">
-                  <FaCalendarAlt className="w-6 h-6 text-dark-blue" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-md">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-medium-gray">Eventos Passados</p>
-                  <p className="text-2xl font-bold text-dark-gray">{pastTickets.length}</p>
-                </div>
-                <div className="w-12 h-12 bg-coral/10 rounded-full flex items-center justify-center">
-                  <FaCheck className="w-6 h-6 text-coral" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-md">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-medium-gray">Total Gasto</p>
-                  <p className="text-2xl font-bold text-dark-gray">{formatPrice(totalSpent)}</p>
-                </div>
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                  <FaTicketAlt className="w-6 h-6 text-green-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {hasUpcoming && (
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-dark-gray mb-6">Próximos Eventos</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {upcomingTickets.map(({ item, event }) => (
-                <Card key={item.id} className="border-0 shadow-md hover:shadow-lg transition-shadow">
-                  <div className="aspect-video bg-light-gray rounded-t-lg flex items-center justify-center">
-                    <span className="text-4xl">🎵</span>
+                <div className="p-5 space-y-4">
+                  {/* Status + IDs */}
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 ${cfg.badge}`}>
+                      {cfg.icon} {cfg.label}
+                    </span>
+                    <span className="text-xs text-gray-400">Pedido #{ticket.orderId}</span>
                   </div>
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-lg line-clamp-2">{event.title}</CardTitle>
-                        <div className="flex items-center space-x-4 mt-2 text-sm text-medium-gray">
-                          <div className="flex items-center">
-                            <FaCalendarAlt className="w-4 h-4 mr-1" />
-                            {formatLongDate(event.eventDate)}
-                          </div>
-                        </div>
-                      </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(item.isCheckedIn)}`}>
-                        {getStatusLabel(item.isCheckedIn)}
-                      </span>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex items-center text-sm text-medium-gray">
-                        <FaMapMarkerAlt className="w-4 h-4 mr-2" />
-                        {event.city || 'Local a definir'}
-                        {event.state && `, ${event.state}`}
-                      </div>
-                      
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="text-sm text-medium-gray">
-                            {item.quantity} ingresso{item.quantity > 1 ? 's' : ''}
-                          </p>
-                          <p className="font-semibold text-dark-gray">
-                            {formatPrice(Number(item.totalPrice))}
-                          </p>
-                        </div>
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleToggleQRCode(item.id)}
-                            className="border-turquoise text-turquoise hover:bg-turquoise hover:text-white"
-                          >
-                            <FaQrcode className="w-4 h-4" />
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <FaShare className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
 
-                      {showQRCode === item.id && (
-                        <div className="p-4 bg-white border border-light-gray rounded-lg">
-                          <div className="text-center">
-                            <div className="w-24 h-24 bg-light-gray rounded-lg mx-auto mb-3 flex items-center justify-center">
-                              <FaQrcode className="w-12 h-12 text-medium-gray" />
-                            </div>
-                            <p className="text-xs text-medium-gray font-mono mb-2">{item.qrCode}</p>
-                            <p className="text-sm text-medium-gray">
-                              Mostre este QR Code na entrada do evento
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        )}
+                  {/* QR Code */}
+                  <div className="flex justify-center">
+                    {isExpanded ? (
+                      <div className="p-3 bg-white border border-gray-100 rounded-xl shadow-sm">
+                        <QRCodeSVG
+                          value={ticket.qrCode}
+                          size={160}
+                          level="M"
+                          includeMargin={false}
+                          fgColor={ticket.status === 'used' ? '#9CA3AF' : '#003B4A'}
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-24 h-24 bg-gray-50 rounded-xl flex items-center justify-center border border-gray-100">
+                        <FaQrcode className="text-gray-300 text-4xl" />
+                      </div>
+                    )}
+                  </div>
 
-        {hasPast && (
-          <div>
-            <h2 className="text-2xl font-bold text-dark-gray mb-6">Eventos Passados</h2>
-            <div className="space-y-4">
-              {pastTickets.map(({ item, event }) => (
-                <Card key={item.id} className="border-0 shadow-md">
-                  <CardContent className="p-6">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-16 h-16 bg-light-gray rounded-lg flex items-center justify-center">
-                        <span className="text-xl">🎵</span>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h3 className="font-semibold text-dark-gray">{event.title}</h3>
-                            <p className="text-sm text-medium-gray">
-                              {formatLongDate(event.eventDate)}
-                            </p>
-                            <p className="text-sm text-medium-gray">
-                              {event.city || 'Local a definir'}
-                              {event.state && `, ${event.state}`}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(item.isCheckedIn)}`}>
-                              {getStatusLabel(item.isCheckedIn)}
-                            </span>
-                            <p className="text-sm text-medium-gray mt-1">
-                              {item.quantity} ingresso{item.quantity > 1 ? 's' : ''}
-                            </p>
-                            <p className="font-semibold text-dark-gray">
-                              {formatPrice(Number(item.totalPrice))}
-                            </p>
-                          </div>
-                        </div>
-                        {item.checkedInAt && (
-                          <div className="mt-2 text-sm text-medium-gray">
-                            Check-in realizado em: {formatDateTime(item.checkedInAt)}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button variant="outline" size="sm">
-                          <FaShare className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        )}
+                  {/* QR code text */}
+                  {isExpanded && (
+                    <p className="text-xs text-gray-400 font-mono text-center break-all bg-gray-50 rounded-lg p-2">
+                      {ticket.qrCode}
+                    </p>
+                  )}
 
-        {!hasTickets && (
-          <Card className="border-0 shadow-md">
-            <CardContent className="p-12 text-center">
-              <div className="w-20 h-20 bg-light-gray rounded-full flex items-center justify-center mx-auto mb-6">
-                <FaTicketAlt className="w-10 h-10 text-medium-gray" />
+                  {/* Dates */}
+                  <div className="text-xs text-gray-500 space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <FaCalendarAlt className="text-gray-400" />
+                      Comprado em {formatDateTime(ticket.createdAt)}
+                    </div>
+                    {ticket.usedAt && (
+                      <div className="flex items-center gap-1.5">
+                        <FaCheckCircle className="text-gray-400" />
+                        Utilizado em {formatDateTime(ticket.usedAt)}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action button */}
+                  <button
+                    onClick={() => setExpandedQr(isExpanded ? null : ticket.id)}
+                    disabled={ticket.status === 'cancelled'}
+                    className={`w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${
+                      ticket.status === 'cancelled'
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : isExpanded
+                        ? 'border-2 border-[#00C2A8] text-[#00C2A8] hover:bg-[#00C2A8] hover:text-white'
+                        : 'text-white'
+                    }`}
+                    style={
+                      ticket.status !== 'cancelled' && !isExpanded
+                        ? { backgroundColor: '#00C2A8' }
+                        : {}
+                    }
+                  >
+                    <FaQrcode />
+                    {isExpanded ? 'Ocultar QR Code' : 'Exibir QR Code'}
+                  </button>
+                </div>
               </div>
-              <h3 className="text-xl font-semibold text-dark-gray mb-2">Nenhum ingresso encontrado</h3>
-              <p className="text-medium-gray mb-6">
-                {searchTerm || statusFilter
-                  ? 'Tente ajustar os filtros de busca.'
-                  : 'Você ainda não possui ingressos. Que tal descobrir alguns eventos incríveis?'
-                }
-              </p>
-              <Button 
-                className="bg-turquoise hover:bg-turquoise/90 text-white"
-                onClick={() => router.push(EVENTS_PATH)}
-              >
-                Descobrir Eventos
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+            );
+          })}
+        </div>
       </div>
     </div>
   );
