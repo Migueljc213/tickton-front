@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { storage } from '@/lib/utils/storage';
 import { usersService } from '@/lib/api/services/users.service';
-import { FaUsers, FaSearch, FaTrash, FaEdit, FaShieldAlt, FaUserTie, FaUser } from 'react-icons/fa';
+import { FaUsers, FaSearch, FaTrash, FaShieldAlt, FaUserTie, FaUser } from 'react-icons/fa';
 import type { User } from '@/types/api';
 
 const ROLE_LABEL: Record<string, string> = {
@@ -34,6 +36,9 @@ export default function AdminUsersPage() {
   const [roleFilter, setRoleFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; user: User | null; loading: boolean }>({
+    open: false, user: null, loading: false,
+  });
 
   useEffect(() => {
     const role = storage.getUserRole();
@@ -62,13 +67,17 @@ export default function AdminUsersPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Tem certeza que deseja excluir este usuário?')) return;
+  const handleDelete = async () => {
+    if (!deleteDialog.user) return;
+    setDeleteDialog((d) => ({ ...d, loading: true }));
     try {
-      await usersService.deleteUser(id);
-      setUsers(prev => prev.filter(u => u.id !== id));
+      await usersService.deleteUser(deleteDialog.user.id);
+      setUsers((prev) => prev.filter((u) => u.id !== deleteDialog.user!.id));
+      toast.success(`Usuário ${deleteDialog.user.name} excluído com sucesso.`);
+      setDeleteDialog({ open: false, user: null, loading: false });
     } catch {
-      alert('Erro ao excluir usuário.');
+      toast.error('Erro ao excluir usuário. Tente novamente.');
+      setDeleteDialog((d) => ({ ...d, loading: false }));
     }
   };
 
@@ -159,14 +168,12 @@ export default function AdminUsersPage() {
                       </span>
                     </td>
                     <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button
-                          onClick={() => handleDelete(user.id)}
-                          style={{ padding: '6px 10px', border: '1px solid #fee2e2', borderRadius: 6, background: '#fff', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 4 }}
-                        >
-                          <FaTrash style={{ fontSize: '0.7rem' }} /> Excluir
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => setDeleteDialog({ open: true, user, loading: false })}
+                        style={{ padding: '6px 10px', border: '1px solid #fee2e2', borderRadius: 6, background: '#fff', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <FaTrash style={{ fontSize: '0.7rem' }} /> Excluir
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -179,6 +186,17 @@ export default function AdminUsersPage() {
           Exibindo {filtered.length} de {users.length} usuários
         </p>
       </div>
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog((d) => ({ ...d, open }))}
+        title="Excluir usuário"
+        description={`Tem certeza que deseja excluir "${deleteDialog.user?.name}"? Esta ação é irreversível.`}
+        confirmLabel="Sim, excluir"
+        variant="destructive"
+        loading={deleteDialog.loading}
+        onConfirm={handleDelete}
+      />
     </DashboardLayout>
   );
 }

@@ -34,6 +34,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
   participant: [
     { label: 'Explorar Eventos', href: '/events',    icon: <FaCalendarAlt /> },
     { label: 'Meus Ingressos',  href: '/tickets',   icon: <FaTicketAlt /> },
+    { label: 'Minha Equipe',    href: '/staff',     icon: <FaShieldAlt /> },
     { label: 'Configurações',   href: '/settings',  icon: <FaCog /> },
   ],
   organizer: [

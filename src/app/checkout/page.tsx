@@ -103,6 +103,14 @@ function CheckoutContent() {
         throw new Error(d.message ?? 'Erro ao criar pedido');
       }
       const data = await res.json();
+
+      // Fluxo sem pagamento (BYPASS_PAYMENT ativo no backend)
+      if (data.bypass || !data.initPoint) {
+        router.push(`/checkout/success?order=${data.orderId}`);
+        return;
+      }
+
+      // Fluxo Mercado Pago
       const url = process.env.NODE_ENV === 'production' ? data.initPoint : data.sandboxInitPoint;
       window.location.href = url;
     } catch (err) {

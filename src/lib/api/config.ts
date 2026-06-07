@@ -33,4 +33,9 @@ export const API_ENDPOINTS = {
     base: '/users',
     me: '/users/me',
   },
+  notifications: {
+    my: '/notifications/my',
+    readAll: '/notifications/read-all',
+    read: (id: number) => `/notifications/${id}/read`,
+  },
 } as const;

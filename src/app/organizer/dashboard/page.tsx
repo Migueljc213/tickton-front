@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import {
   FaPlus,
@@ -15,6 +17,7 @@ import {
   FaEdit,
   FaTrash,
   FaUserCog,
+  FaUsers,
 } from 'react-icons/fa';
 import { useEvents, useOrders, useAuth } from '@/hooks';
 import { eventsService } from '@/lib/api/services';
@@ -41,6 +44,9 @@ export default function OrganizerDashboard() {
   const { getCheckInDashboard } = useOrders();
 
   const [organizerEvents, setOrganizerEvents] = useState<Event[]>([]);
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; event: Event | null; loading: boolean }>({
+    open: false, event: null, loading: false,
+  });
   const [stats, setStats] = useState({
     totalEvents: 0,
     activeEvents: 0,
@@ -100,15 +106,20 @@ export default function OrganizerDashboard() {
     run();
   }, [eventsLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleViewEvent   = (id: number) => router.push(`${EVENTS_PATH}/${id}`);
-  const handleEditEvent   = (id: number) => router.push(`/organizer/events/${id}/edit`);
-  const handleDeleteEvent = async (id: number) => {
-    if (!confirm('Tem certeza que deseja excluir este evento?')) return;
+  const handleViewEvent = (id: number) => router.push(`${EVENTS_PATH}/${id}`);
+  const handleEditEvent = (id: number) => router.push(`/organizer/events/${id}/edit`);
+
+  const handleDeleteEvent = async () => {
+    if (!deleteDialog.event) return;
+    setDeleteDialog((d) => ({ ...d, loading: true }));
     try {
-      await eventsService.deleteEvent(id);
-      setOrganizerEvents(prev => prev.filter(e => e.id !== id));
+      await eventsService.deleteEvent(deleteDialog.event.id);
+      setOrganizerEvents((prev) => prev.filter((e) => e.id !== deleteDialog.event!.id));
+      toast.success('Evento excluído com sucesso!');
+      setDeleteDialog({ open: false, event: null, loading: false });
     } catch {
-      alert('Erro ao excluir evento');
+      toast.error('Erro ao excluir evento. Tente novamente.');
+      setDeleteDialog((d) => ({ ...d, loading: false }));
     }
   };
 
@@ -268,13 +279,16 @@ export default function OrganizerDashboard() {
                         </td>
                         <td style={{ padding: '14px 16px' }}>
                           <div style={{ display: 'flex', gap: 4 }}>
-                            <Button variant="ghost" size="sm" style={{ padding: '6px 8px' }} onClick={() => handleViewEvent(event.id)}>
+                            <Button variant="ghost" size="sm" style={{ padding: '6px 8px' }} title="Ver evento" onClick={() => handleViewEvent(event.id)}>
                               <FaEye style={{ color: '#64748b' }} />
                             </Button>
-                            <Button variant="ghost" size="sm" style={{ padding: '6px 8px' }} onClick={() => handleEditEvent(event.id)}>
+                            <Button variant="ghost" size="sm" style={{ padding: '6px 8px' }} title="Editar" onClick={() => handleEditEvent(event.id)}>
                               <FaEdit style={{ color: '#64748b' }} />
                             </Button>
-                            <Button variant="ghost" size="sm" style={{ padding: '6px 8px' }} onClick={() => handleDeleteEvent(event.id)}>
+                            <Button variant="ghost" size="sm" style={{ padding: '6px 8px' }} title="Equipe de portaria" onClick={() => router.push(`/organizer/events/${event.id}/staff`)}>
+                              <FaUsers style={{ color: '#00C2A8' }} />
+                            </Button>
+                            <Button variant="ghost" size="sm" style={{ padding: '6px 8px' }} title="Excluir" onClick={() => setDeleteDialog({ open: true, event, loading: false })}>
                               <FaTrash style={{ color: '#ef4444' }} />
                             </Button>
                           </div>
@@ -327,6 +341,17 @@ export default function OrganizerDashboard() {
         </div>
 
       </div>
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog((d) => ({ ...d, open }))}
+        title="Excluir evento"
+        description={`Tem certeza que deseja excluir "${deleteDialog.event?.title}"? Esta ação não pode ser desfeita.`}
+        confirmLabel="Sim, excluir"
+        variant="destructive"
+        loading={deleteDialog.loading}
+        onConfirm={handleDeleteEvent}
+      />
     </DashboardLayout>
   );
 }
