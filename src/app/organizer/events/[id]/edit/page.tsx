@@ -25,6 +25,22 @@ function toLocalDatetime(iso: string | null | undefined) {
   return iso.slice(0, 16);
 }
 
+type EditFieldErrors = {
+  title?: string;
+  eventDate?: string;
+  eventEndDate?: string;
+};
+
+const DT_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+function validateDatetime(value: string): 'missing' | 'missing-time' | 'invalid' | 'valid' {
+  if (!value) return 'missing';
+  if (DT_REGEX.test(value)) return isNaN(new Date(value).getTime()) ? 'invalid' : 'valid';
+  if (DATE_ONLY_REGEX.test(value)) return 'missing-time';
+  return 'invalid';
+}
+
 export default function EditEventPage() {
   const router = useRouter();
   const params = useParams();
@@ -35,6 +51,7 @@ export default function EditEventPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<EditFieldErrors>({});
 
   // CEP state
   const [cepLoading, setCepLoading] = useState(false);
@@ -113,8 +130,12 @@ export default function EditEventPage() {
     load();
   }, [eventId, getToken]);
 
-  const setField = (k: string, v: string | boolean | string[]) =>
+  const setField = (k: string, v: string | boolean | string[]) => {
     setForm((prev) => ({ ...prev, [k]: v }));
+    if (k === 'title' || k === 'eventDate' || k === 'eventEndDate') {
+      setFieldErrors((prev) => { const n = { ...prev }; delete n[k as keyof EditFieldErrors]; return n; });
+    }
+  };
 
   const handleCepBlur = async (cep: string) => {
     const digits = cep.replace(/\D/g, '');
@@ -183,8 +204,26 @@ export default function EditEventPage() {
   };
 
   const handleSave = async () => {
-    if (!form.title.trim()) { setError('Título é obrigatório'); return; }
-    if (!form.eventDate) { setError('Data do evento é obrigatória'); return; }
+    const errs: EditFieldErrors = {};
+    if (!form.title.trim()) errs.title = 'Título é obrigatório';
+
+    const startStatus = validateDatetime(form.eventDate);
+    if (startStatus === 'missing') errs.eventDate = 'Data de início é obrigatória';
+    else if (startStatus === 'missing-time') errs.eventDate = 'Informe também o horário de início';
+    else if (startStatus === 'invalid') errs.eventDate = 'Data de início inválida';
+
+    if (form.eventEndDate) {
+      const endStatus = validateDatetime(form.eventEndDate);
+      if (endStatus === 'missing-time') errs.eventEndDate = 'Informe também o horário de término';
+      else if (endStatus === 'invalid') errs.eventEndDate = 'Data de término inválida';
+      else if (endStatus === 'valid' && !errs.eventDate) {
+        if (new Date(form.eventEndDate) <= new Date(form.eventDate))
+          errs.eventEndDate = 'A data de término deve ser posterior à data de início';
+      }
+    }
+
+    if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
+    setFieldErrors({});
 
     const token = getToken();
     if (!token) { router.push('/login'); return; }
@@ -192,8 +231,10 @@ export default function EditEventPage() {
     setSaving(true);
     setError(null);
     try {
-      const allUrls = await uploadImages(token);
-      const bannerUrl = allUrls.length > 0 ? JSON.stringify(allUrls) : undefined;
+      // TODO: S3 não configurado — descomente quando configurar o bucket.
+      // const allUrls = await uploadImages(token);
+      // const bannerUrl = allUrls.length > 0 ? JSON.stringify(allUrls) : undefined;
+      const bannerUrl = undefined;
 
       const res = await fetch(`${API_URL}/events/${eventId}`, {
         method: 'PATCH',
@@ -282,8 +323,14 @@ export default function EditEventPage() {
 
             <div>
               <label className="label-form">Título do evento *</label>
-              <input type="text" className="input-form" placeholder="Ex: Festival de Música Eletrônica 2025"
-                value={form.title} onChange={(e) => setField('title', e.target.value)} />
+              <input
+                type="text"
+                className={`input-form ${fieldErrors.title ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
+                placeholder="Ex: Festival de Música Eletrônica 2025"
+                value={form.title}
+                onChange={(e) => setField('title', e.target.value)}
+              />
+              {fieldErrors.title && <p className="mt-1.5 text-xs text-red-600">{fieldErrors.title}</p>}
             </div>
 
             <div>
@@ -312,13 +359,23 @@ export default function EditEventPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="label-form">Data de início *</label>
-                <input type="datetime-local" className="input-form"
-                  value={form.eventDate} onChange={(e) => setField('eventDate', e.target.value)} />
+                <input
+                  type="datetime-local"
+                  className={`input-form ${fieldErrors.eventDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
+                  value={form.eventDate}
+                  onChange={(e) => setField('eventDate', e.target.value)}
+                />
+                {fieldErrors.eventDate && <p className="mt-1.5 text-xs text-red-600">{fieldErrors.eventDate}</p>}
               </div>
               <div>
                 <label className="label-form">Data de término</label>
-                <input type="datetime-local" className="input-form"
-                  value={form.eventEndDate} onChange={(e) => setField('eventEndDate', e.target.value)} />
+                <input
+                  type="datetime-local"
+                  className={`input-form ${fieldErrors.eventEndDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
+                  value={form.eventEndDate}
+                  onChange={(e) => setField('eventEndDate', e.target.value)}
+                />
+                {fieldErrors.eventEndDate && <p className="mt-1.5 text-xs text-red-600">{fieldErrors.eventEndDate}</p>}
               </div>
             </div>
 

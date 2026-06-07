@@ -27,7 +27,13 @@ interface TicketSelection {
   totalPrice: number;
 }
 
-const STEPS = ['Ingressos', 'Revisão', 'Pagamento'] as const;
+const STEPS = ['Ingressos', 'Seus Dados', 'Revisão', 'Pagamento'] as const;
+
+interface DemographicData {
+  gender: string;
+  age: string;
+  neighborhood: string;
+}
 
 /* ─── Skeleton de carregamento ─── */
 function LoadingSkeleton() {
@@ -54,6 +60,7 @@ function CheckoutContent() {
 
   const [step, setStep] = useState(0);
   const [selections, setSelections] = useState<TicketSelection[]>([]);
+  const [demographics, setDemographics] = useState<DemographicData>({ gender: '', age: '', neighborhood: '' });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -98,6 +105,9 @@ function CheckoutContent() {
           body: JSON.stringify({
             items: selections.map((s) => ({ ticketId: s.ticketId, quantity: s.quantity })),
             backUrl: window.location.origin,
+            ...(demographics.gender ? { customerGender: demographics.gender } : {}),
+            ...(demographics.age ? { customerAge: parseInt(demographics.age, 10) } : {}),
+            ...(demographics.neighborhood ? { customerNeighborhood: demographics.neighborhood } : {}),
           }),
         });
       } catch {
@@ -257,7 +267,65 @@ function CheckoutContent() {
     </div>
   );
 
-  /* ─── STEP 1: revisão ─── */
+  /* ─── STEP 1: dados demográficos (opcional) ─── */
+  const renderDemographics = () => (
+    <div className="space-y-5">
+      <div className="mb-6">
+        <h2 className="text-xl font-bold text-gray-900">Sobre você</h2>
+        <p className="text-gray-500 text-sm mt-1">
+          Dados opcionais — ajudam o organizador a melhorar o evento.
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Gênero</label>
+          <select
+            value={demographics.gender}
+            onChange={e => setDemographics(d => ({ ...d, gender: e.target.value }))}
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-800 bg-white focus:outline-none focus:border-[#00C2A8]"
+          >
+            <option value="">Prefiro não informar</option>
+            <option value="masculino">Masculino</option>
+            <option value="feminino">Feminino</option>
+            <option value="nao_binario">Não-binário</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Idade</label>
+          <input
+            type="number"
+            min={1}
+            max={120}
+            placeholder="Ex: 25"
+            value={demographics.age}
+            onChange={e => setDemographics(d => ({ ...d, age: e.target.value }))}
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-800 focus:outline-none focus:border-[#00C2A8]"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Bairro / Cidade de origem</label>
+          <input
+            type="text"
+            placeholder="Ex: Copacabana"
+            maxLength={100}
+            value={demographics.neighborhood}
+            onChange={e => setDemographics(d => ({ ...d, neighborhood: e.target.value }))}
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-800 focus:outline-none focus:border-[#00C2A8]"
+          />
+        </div>
+      </div>
+
+      <p className="text-xs text-gray-400 mt-2">
+        Todas as informações acima são opcionais e utilizadas apenas para análise do evento.
+      </p>
+    </div>
+  );
+
+  /* ─── STEP 2: revisão ─── */
   const renderReview = () => (
     <div className="space-y-5">
       <div className="mb-6">
@@ -406,7 +474,8 @@ function CheckoutContent() {
           <div className="lg:col-span-2">
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8">
               {step === 0 && renderTickets()}
-              {step === 1 && renderReview()}
+              {step === 1 && renderDemographics()}
+              {step === 2 && renderReview()}
             </div>
 
             {/* Botões de navegação */}
@@ -416,6 +485,17 @@ function CheckoutContent() {
                   onClick={() => setStep(1)}
                   disabled={selections.length === 0}
                   className="w-full py-4 rounded-xl font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-40 text-base"
+                  style={{ backgroundColor: '#00C2A8' }}
+                >
+                  Continuar → Seus Dados
+                </button>
+              </div>
+            )}
+            {step === 1 && (
+              <div className="mt-5">
+                <button
+                  onClick={() => setStep(2)}
+                  className="w-full py-4 rounded-xl font-bold text-white transition-opacity hover:opacity-90 text-base"
                   style={{ backgroundColor: '#00C2A8' }}
                 >
                   Continuar → Revisão

@@ -520,13 +520,15 @@ body {
 }
 
 /* ===== INPUTS ===== */
-input, select, textarea {
-  color: var(--gray-900);
-}
+@layer base {
+  input, select, textarea {
+    color: var(--gray-900);
+  }
 
-input::placeholder,
-textarea::placeholder {
-  color: var(--gray-400);
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--gray-400);
+  }
 }
 
 /* ===== FOCUS RING ===== */
@@ -587,27 +589,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
 .ticket-notch::after  { right: -9px; }
 
 /* ===== NAV STYLES ===== */
-header nav a {
-  color: var(--gray-700);
-  font-weight: 500;
-  transition: color 0.2s ease;
-  position: relative;
-}
-
-header nav a::after {
-  content: '';
-  position: absolute;
-  bottom: -4px;
-  left: 0;
-  width: 0;
-  height: 2px;
-  background: var(--turquoise);
-  transition: width 0.2s ease;
-  border-radius: 2px;
-}
-
-header nav a:hover { color: var(--turquoise); }
-header nav a:hover::after { width: 100%; }
+/* Nav link colors are controlled by the Header component via Tailwind classes */
 
 /* ===== CATEGORY PILL ===== */
 .category-pill {

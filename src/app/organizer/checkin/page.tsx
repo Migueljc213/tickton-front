@@ -135,23 +135,14 @@ export default function CheckinPage() {
   const [cameraMode, setCameraMode] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
 
-  const videoRef  = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const readerRef = useRef<import('@zxing/browser').BrowserMultiFormatReader | null>(null);
-  const inputRef  = useRef<HTMLInputElement>(null);
+  const videoRef    = useRef<HTMLVideoElement>(null);
+  const controlsRef = useRef<import('@zxing/browser').IScannerControls | null>(null);
+  const inputRef    = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const token = getToken();
     if (!token) router.push('/login');
   }, [getToken, router]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      stopCamera();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const validate = useCallback(async (qrCode: string) => {
     const token = getToken();
@@ -212,55 +203,61 @@ export default function CheckinPage() {
     validate(manualCode);
   };
 
-  const stopCamera = () => {
-    readerRef.current = null;
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
+  const stopCamera = useCallback(() => {
+    controlsRef.current?.stop();
+    controlsRef.current = null;
     setCameraMode(false);
     setCameraError(null);
-  };
+  }, []);
 
-  const startCamera = async () => {
-    setCameraError(null);
-    try {
-      // Dynamic import so server-side rendering doesn't break
-      const { BrowserMultiFormatReader } = await import('@zxing/browser');
-      const reader = new BrowserMultiFormatReader();
-      readerRef.current = reader;
+  // Inicia o ZXing DEPOIS que o <video> já está no DOM (useEffect roda após o commit do React)
+  useEffect(() => {
+    if (!cameraMode) return;
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-      });
-      streamRef.current = stream;
+    let active = true;
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
+    (async () => {
+      try {
+        const { BrowserMultiFormatReader } = await import('@zxing/browser');
+        const reader = new BrowserMultiFormatReader();
 
-      setCameraMode(true);
+        const controls = await reader.decodeFromConstraints(
+          { video: { facingMode: 'environment' } },
+          videoRef.current!,
+          (result, err) => {
+            if (!active || !result) return void err;
+            void validate(result.getText());
+          },
+        );
 
-      // Start continuous decoding
-      reader.decodeFromStream(stream, videoRef.current!, (result, err) => {
-        if (result) {
-          const code = result.getText();
-          // Prevent duplicate scans
-          if (code && !loading) {
-            void validate(code);
-          }
+        if (!active) {
+          controls.stop();
+          return;
         }
-        // err is normal when no QR is in frame — ignore
-        void err;
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erro desconhecido';
-      if (msg.includes('Permission') || msg.includes('NotAllowed')) {
-        setCameraError('Permissão de câmera negada. Permita o acesso nas configurações do navegador.');
-      } else {
-        setCameraError('Não foi possível acessar a câmera. Use o modo manual.');
+        controlsRef.current = controls;
+      } catch (err) {
+        if (!active) return;
+        const msg = err instanceof Error ? err.message : '';
+        const denied = msg.includes('Permission') || msg.includes('NotAllowed') || msg.includes('NotFound');
+        setCameraError(
+          denied
+            ? 'Permissão de câmera negada. Permita o acesso nas configurações do navegador.'
+            : 'Não foi possível acessar a câmera. Use o modo manual.',
+        );
+        setCameraMode(false);
       }
-      stopCamera();
-    }
+    })();
+
+    return () => {
+      active = false;
+      controlsRef.current?.stop();
+      controlsRef.current = null;
+    };
+  }, [cameraMode, validate]);
+
+  const startCamera = () => {
+    setCameraError(null);
+    setCameraMode(true);
   };
 
   const sessionStats = {

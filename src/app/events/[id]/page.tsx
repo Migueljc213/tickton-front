@@ -28,6 +28,7 @@ import { useAuth } from '@/hooks';
 import { formatPrice, formatLongDate, formatTime } from '@/lib/utils/format';
 import type { Ticket } from '@/types/api';
 import EventWall from '@/components/events/EventWall';
+import EventMapCard from '@/components/events/EventMapCard';
 
 const CHECKOUT_PATH = '/checkout';
 const EVENTS_PATH   = '/events';
@@ -362,6 +363,14 @@ export default function EventDetailsPage() {
                 </p>
               </div>
             )}
+
+            {/* Localização no mapa */}
+            <EventMapCard
+              venueName={event.venueName}
+              address={event.address}
+              city={event.city}
+              state={event.state}
+            />
 
             {/* Card do Organizador */}
             {organizer && (

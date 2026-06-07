@@ -19,7 +19,7 @@ import {
   FaUserCog,
   FaUsers,
 } from 'react-icons/fa';
-import { useEvents, useOrders, useAuth } from '@/hooks';
+import { useOrders, useAuth } from '@/hooks';
 import { eventsService } from '@/lib/api/services';
 import { formatPrice, formatDate } from '@/lib/utils/format';
 import { STATUS_COLORS, STATUS_LABELS, EVENT_STATUS } from '@/lib/utils/constants';
@@ -36,11 +36,11 @@ const cardStyle: React.CSSProperties = {
   padding: '24px',
 };
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+
 export default function OrganizerDashboard() {
   const router = useRouter();
-  const { getUserId } = useAuth();
-  // useEvents auto-fetches on mount — no need to call fetchEvents manually
-  const { events: allEvents, loading: eventsLoading } = useEvents();
+  const { getUserId, getToken } = useAuth();
   const { getCheckInDashboard } = useOrders();
 
   const [organizerEvents, setOrganizerEvents] = useState<Event[]>([]);
@@ -54,6 +54,7 @@ export default function OrganizerDashboard() {
     totalTicketsSold: 0,
   });
   const [eventStats, setEventStats] = useState<Record<number, CheckInDashboardResponse>>({});
+  const [eventsLoading, setEventsLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
   const processed = useRef(false);
 
@@ -63,38 +64,66 @@ export default function OrganizerDashboard() {
     if (!userId) router.push(LOGIN_PATH);
   }, [getUserId, router]);
 
-  // Process events once the hook finishes loading (avoids infinite loop from allEvents in deps)
+  // Busca os eventos do organizador logado e carrega estatísticas
   useEffect(() => {
-    if (eventsLoading) return;
     if (processed.current) return;
     processed.current = true;
 
     const run = async () => {
-      setStatsLoading(true);
-      const published = allEvents.filter(e => e.isPublished);
-      setOrganizerEvents(published);
+      const token = getToken();
+      const userId = getUserId();
+      if (!token || !userId) return;
 
+      // Descobre o organizerId do usuário logado
+      let organizerId: number | null = null;
+      try {
+        const res = await fetch(`${API_URL}/organizers`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const orgs: Array<{ id: number; userId: number }> = data.organizers ?? data;
+          const myOrg = Array.isArray(orgs) ? orgs.find(o => o.userId === userId) : null;
+          if (myOrg) organizerId = myOrg.id;
+        }
+      } catch { /* ignora */ }
+
+      setEventsLoading(false);
+
+      if (!organizerId) {
+        setStatsLoading(false);
+        return;
+      }
+
+      // Busca apenas os eventos deste organizador (publicados + rascunhos)
+      let myEvents: Event[] = [];
+      try {
+        const response = await eventsService.getEventsByOrganizer(organizerId);
+        myEvents = response.events;
+      } catch { /* ignora */ }
+
+      setOrganizerEvents(myEvents);
+
+      // Carrega estatísticas apenas para eventos publicados
       let totalRevenue = 0;
       let totalTicketsSold = 0;
       const statsMap: Record<number, CheckInDashboardResponse> = {};
 
       await Promise.all(
-        published.map(async (event) => {
+        myEvents.map(async (event) => {
           try {
             const d = await getCheckInDashboard(event.id);
             totalRevenue += d.revenue;
             totalTicketsSold += d.totalTickets;
             statsMap[event.id] = d;
-          } catch {
-            // ignore per-event errors
-          }
+          } catch { /* ignora per-event */ }
         })
       );
 
       setEventStats(statsMap);
       setStats({
-        totalEvents: published.length,
-        activeEvents: published.filter(
+        totalEvents: myEvents.length,
+        activeEvents: myEvents.filter(
           e => e.status === EVENT_STATUS.ACTIVE || e.status === EVENT_STATUS.PUBLISHED
         ).length,
         totalRevenue,
@@ -104,7 +133,7 @@ export default function OrganizerDashboard() {
     };
 
     run();
-  }, [eventsLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleViewEvent = (id: number) => router.push(`${EVENTS_PATH}/${id}`);
   const handleEditEvent = (id: number) => router.push(`/organizer/events/${id}/edit`);

@@ -4,14 +4,20 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { storage } from '@/lib/utils/storage';
-import { useEvents, useOrders } from '@/hooks';
+import { useOrders, useAuth } from '@/hooks';
+import { eventsService } from '@/lib/api/services';
+import type { Event } from '@/types/api';
 import { FaUsers, FaSearch, FaCheckCircle, FaClock, FaDownload, FaQrcode } from 'react-icons/fa';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export default function OrganizerParticipantsPage() {
   const router = useRouter();
-  const { events, loading: eventsLoading } = useEvents();
+  const { getToken, getUserId } = useAuth();
   const { getParticipantsList } = useOrders();
 
+  const [myEvents, setMyEvents] = useState<Event[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [participants, setParticipants] = useState<any[]>([]);
   const [filtered, setFiltered] = useState<any[]>([]);
@@ -19,16 +25,32 @@ export default function OrganizerParticipantsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const userId = storage.getUserId();
-
-  // Garante que é organizador
+  // Garante que é organizador e carrega os eventos
   useEffect(() => {
     const role = storage.getUserRole();
     if (role !== 'organizer') { router.replace('/login'); return; }
-  }, [router]);
 
-  // Filtra eventos do organizador logado
-  const myEvents = events.filter(e => e.organizerId === userId);
+    const token = getToken();
+    const userId = getUserId();
+    if (!token || !userId) return;
+
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/organizers`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const orgs: Array<{ id: number; userId: number }> = data.organizers ?? data;
+        const myOrg = Array.isArray(orgs) ? orgs.find(o => o.userId === userId) : null;
+        if (!myOrg) return;
+        const response = await eventsService.getEventsByOrganizer(myOrg.id);
+        setMyEvents(response.events);
+      } catch { /* ignora */ } finally {
+        setEventsLoading(false);
+      }
+    })();
+  }, [router, getToken, getUserId]);
 
   // Carrega participantes quando seleciona evento
   useEffect(() => {

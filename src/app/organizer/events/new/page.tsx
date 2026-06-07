@@ -61,6 +61,22 @@ const CATEGORIES = [
 
 type Step = 'event' | 'tickets' | 'review';
 
+type EventFieldErrors = {
+  title?: string;
+  eventDate?: string;
+  eventEndDate?: string;
+};
+
+const DT_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+function validateDatetime(value: string): 'missing' | 'missing-time' | 'invalid' | 'valid' {
+  if (!value) return 'missing';
+  if (DT_REGEX.test(value)) return isNaN(new Date(value).getTime()) ? 'invalid' : 'valid';
+  if (DATE_ONLY_REGEX.test(value)) return 'missing-time';
+  return 'invalid';
+}
+
 export default function NewEventPage() {
   const router = useRouter();
   const { getToken } = useAuth();
@@ -68,6 +84,7 @@ export default function NewEventPage() {
   const [step, setStep] = useState<Step>('event');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<EventFieldErrors>({});
   const [createdEventId, setCreatedEventId] = useState<number | null>(null);
   const [organizerId, setOrganizerId] = useState<number | null>(null);
 
@@ -111,8 +128,12 @@ export default function NewEventPage() {
 
   const [lotes, setLotes] = useState<Lote[]>([{ ...EMPTY_LOTE }]);
 
-  const setEventField = (k: string, v: string | boolean) =>
+  const setEventField = (k: string, v: string | boolean) => {
     setEvent((prev) => ({ ...prev, [k]: v }));
+    if (k === 'title' || k === 'eventDate' || k === 'eventEndDate') {
+      setFieldErrors((prev) => { const n = { ...prev }; delete n[k as keyof EventFieldErrors]; return n; });
+    }
+  };
 
   const setLoteField = (idx: number, k: keyof Lote, v: string) =>
     setLotes((prev) => prev.map((l, i) => (i === idx ? { ...l, [k]: v } : l)));
@@ -185,13 +206,26 @@ export default function NewEventPage() {
     }
   };
 
-  const validateEvent = () => {
-    if (!event.title.trim()) return 'Título é obrigatório';
-    if (!event.category) return 'Categoria é obrigatória';
-    if (!event.eventDate) return 'Data do evento é obrigatória';
-    if (event.eventEndDate && new Date(event.eventEndDate) <= new Date(event.eventDate))
-      return 'A data de término deve ser posterior à data de início do evento';
-    return null;
+  const validateEventFields = (): EventFieldErrors => {
+    const errs: EventFieldErrors = {};
+    if (!event.title.trim()) errs.title = 'Título é obrigatório';
+
+    const startStatus = validateDatetime(event.eventDate);
+    if (startStatus === 'missing') errs.eventDate = 'Data de início é obrigatória';
+    else if (startStatus === 'missing-time') errs.eventDate = 'Informe também o horário de início';
+    else if (startStatus === 'invalid') errs.eventDate = 'Data de início inválida';
+
+    if (event.eventEndDate) {
+      const endStatus = validateDatetime(event.eventEndDate);
+      if (endStatus === 'missing-time') errs.eventEndDate = 'Informe também o horário de término';
+      else if (endStatus === 'invalid') errs.eventEndDate = 'Data de término inválida';
+      else if (endStatus === 'valid' && !errs.eventDate) {
+        if (new Date(event.eventEndDate) <= new Date(event.eventDate))
+          errs.eventEndDate = 'A data de término deve ser posterior à data de início';
+      }
+    }
+
+    return errs;
   };
 
   const validateLotes = () => {
@@ -208,8 +242,9 @@ export default function NewEventPage() {
   };
 
   const handleNextToTickets = () => {
-    const err = validateEvent();
-    if (err) { setError(err); return; }
+    const errs = validateEventFields();
+    if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
+    setFieldErrors({});
     setError(null);
     setStep('tickets');
   };
@@ -234,14 +269,15 @@ export default function NewEventPage() {
     }
 
     try {
-      // TODO: S3 não configurado — upload de imagens desativado. Remover este bloco quando configurar o bucket.
-      let imageUrls: string[] = [];
-      try {
-        imageUrls = await uploadImages(token);
-      } catch {
-        console.warn('Upload de imagens falhou (S3 não configurado). Criando evento sem banner.');
-      }
-      const bannerUrl = imageUrls.length > 0 ? JSON.stringify(imageUrls) : undefined;
+      // TODO: S3 não configurado — descomente quando configurar o bucket.
+      // let imageUrls: string[] = [];
+      // try {
+      //   imageUrls = await uploadImages(token);
+      // } catch {
+      //   console.warn('Upload de imagens falhou (S3 não configurado). Criando evento sem banner.');
+      // }
+      // const bannerUrl = imageUrls.length > 0 ? JSON.stringify(imageUrls) : undefined;
+      const bannerUrl = undefined;
       const str = (v: string) => v.trim() || undefined;
 
       const evtRes = await fetch(`${API_URL}/events`, {
@@ -369,8 +405,14 @@ export default function NewEventPage() {
 
               <div>
                 <label className="label-form">Título do evento *</label>
-                <input type="text" className="input-form" placeholder="Ex: Festival de Música Eletrônica 2025"
-                  value={event.title} onChange={(e) => setEventField('title', e.target.value)} />
+                <input
+                  type="text"
+                  className={`input-form ${fieldErrors.title ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
+                  placeholder="Ex: Festival de Música Eletrônica 2025"
+                  value={event.title}
+                  onChange={(e) => setEventField('title', e.target.value)}
+                />
+                {fieldErrors.title && <p className="mt-1.5 text-xs text-red-600">{fieldErrors.title}</p>}
               </div>
 
               <div>
@@ -399,13 +441,23 @@ export default function NewEventPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label-form">Data de início *</label>
-                  <input type="datetime-local" className="input-form"
-                    value={event.eventDate} onChange={(e) => setEventField('eventDate', e.target.value)} />
+                  <input
+                    type="datetime-local"
+                    className={`input-form ${fieldErrors.eventDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
+                    value={event.eventDate}
+                    onChange={(e) => setEventField('eventDate', e.target.value)}
+                  />
+                  {fieldErrors.eventDate && <p className="mt-1.5 text-xs text-red-600">{fieldErrors.eventDate}</p>}
                 </div>
                 <div>
                   <label className="label-form">Data de término</label>
-                  <input type="datetime-local" className="input-form"
-                    value={event.eventEndDate} onChange={(e) => setEventField('eventEndDate', e.target.value)} />
+                  <input
+                    type="datetime-local"
+                    className={`input-form ${fieldErrors.eventEndDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
+                    value={event.eventEndDate}
+                    onChange={(e) => setEventField('eventEndDate', e.target.value)}
+                  />
+                  {fieldErrors.eventEndDate && <p className="mt-1.5 text-xs text-red-600">{fieldErrors.eventEndDate}</p>}
                 </div>
               </div>
 

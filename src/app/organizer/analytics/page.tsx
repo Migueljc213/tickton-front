@@ -3,11 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { useEvents } from '@/hooks';
+import { useAuth } from '@/hooks';
 import { storage } from '@/lib/utils/storage';
+import { eventsService } from '@/lib/api/services';
+import type { Event } from '@/types/api';
 import {
   FaChartBar, FaUsers, FaCheckCircle, FaClock, FaDollarSign,
   FaTicketAlt, FaStar, FaCommentAlt, FaLink, FaCopy, FaCheck,
+  FaVenusMars, FaUtensils, FaMapMarkerAlt,
 } from 'react-icons/fa';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -29,6 +32,18 @@ interface Analytics {
     ticketId: number; name: string; ticketType: string;
     price: number; sold: number; checkedIn: number;
   }>;
+  demographics: {
+    genderBreakdown: Array<{ gender: string; count: number }>;
+    ageGroups: Array<{ group: string; count: number }>;
+    neighborhoodBreakdown: Array<{ neighborhood: string; count: number }>;
+    totalWithData: number;
+  };
+  consumption: {
+    items: Array<{ itemName: string; category: string; totalQuantity: number; totalRevenue: number }>;
+    byCategory: Array<{ category: string; totalQuantity: number; totalRevenue: number }>;
+    totalRevenue: number;
+    totalItems: number;
+  };
 }
 
 interface FeedbackSummary {
@@ -51,6 +66,27 @@ const fmtBRL = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
 const fmtPct = (v: number) => `${v}%`;
+
+const GENDER_LABELS: Record<string, string> = {
+  masculino: 'Masculino',
+  feminino: 'Feminino',
+  nao_binario: 'Não-binário',
+  outro: 'Outro',
+  nao_informado: 'Não informado',
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  bebida: 'Bebidas',
+  comida: 'Comidas',
+  outro: 'Outros',
+};
+
+const GENDER_COLORS = ['#00C2A8', '#003B4A', '#60a5fa', '#f59e0b', '#a78bfa'];
+const CATEGORY_COLORS: Record<string, string> = {
+  bebida: '#00C2A8',
+  comida: '#f59e0b',
+  outro: '#a78bfa',
+};
 
 function StarRating({ value }: { value: number | null }) {
   if (value === null) return <span className="text-gray-400 text-sm">Sem dados</span>;
@@ -113,7 +149,9 @@ function NpsGauge({ score }: { score: number }) {
 
 export default function AnalyticsPage() {
   const router = useRouter();
-  const { events, loading: eventsLoading } = useEvents();
+  const { getToken, getUserId } = useAuth();
+  const [myEvents, setMyEvents] = useState<Event[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [feedback, setFeedback] = useState<FeedbackSummary | null>(null);
@@ -121,13 +159,31 @@ export default function AnalyticsPage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const userId = storage.getUserId();
-  const myEvents = events.filter(e => e.organizerId === userId);
-
   useEffect(() => {
     const role = storage.getUserRole();
-    if (role !== 'organizer') router.replace('/login');
-  }, [router]);
+    if (role !== 'organizer') { router.replace('/login'); return; }
+
+    const token = getToken();
+    const userId = getUserId();
+    if (!token || !userId) return;
+
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/organizers`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const orgs: Array<{ id: number; userId: number }> = data.organizers ?? data;
+        const myOrg = Array.isArray(orgs) ? orgs.find(o => o.userId === userId) : null;
+        if (!myOrg) return;
+        const response = await eventsService.getEventsByOrganizer(myOrg.id);
+        setMyEvents(response.events);
+      } catch { /* ignora */ } finally {
+        setEventsLoading(false);
+      }
+    })();
+  }, [router, getToken, getUserId]);
 
   useEffect(() => {
     if (!selectedEventId) return;
@@ -177,7 +233,7 @@ export default function AnalyticsPage() {
   })) ?? [];
 
   const dailyLabels = analytics?.dailySales.slice(-14).map(d => ({
-    label: new Date(d.date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+    label: new Date(d.date.slice(0, 10) + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
     value: d.count,
   })) ?? [];
 
@@ -406,6 +462,186 @@ export default function AnalyticsPage() {
                   </table>
                 </div>
               </div>
+
+              {/* ── Dados Demográficos ──────────────────────────────────────── */}
+              {analytics.demographics && (
+                <div className="bg-white rounded-2xl shadow-sm p-5">
+                  <h2 className="font-bold text-gray-800 mb-1 flex items-center gap-2">
+                    <FaVenusMars className="text-[#00C2A8]" /> Dados Demográficos
+                  </h2>
+                  <p className="text-xs text-gray-400 mb-4">
+                    {analytics.demographics.totalWithData > 0
+                      ? `${analytics.demographics.totalWithData} comprador(es) forneceram dados`
+                      : 'Nenhum dado demográfico coletado ainda'}
+                  </p>
+
+                  {analytics.demographics.totalWithData === 0 ? (
+                    <p className="text-gray-400 text-sm text-center py-6">
+                      Os dados aparecerão quando compradores preencherem os campos opcionais no checkout.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      {/* Gênero */}
+                      {analytics.demographics.genderBreakdown.length > 0 && (
+                        <div>
+                          <p className="text-sm font-semibold text-gray-700 mb-3">Gênero</p>
+                          <div className="space-y-2">
+                            {analytics.demographics.genderBreakdown.map((g, i) => {
+                              const total = analytics.demographics.genderBreakdown.reduce((s, x) => s + x.count, 0);
+                              const pct = total > 0 ? Math.round((g.count / total) * 100) : 0;
+                              return (
+                                <div key={g.gender}>
+                                  <div className="flex justify-between text-xs mb-1">
+                                    <span className="text-gray-600">{GENDER_LABELS[g.gender] ?? g.gender}</span>
+                                    <span className="font-bold text-gray-800">{g.count} ({pct}%)</span>
+                                  </div>
+                                  <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full transition-all"
+                                      style={{ width: `${pct}%`, background: GENDER_COLORS[i % GENDER_COLORS.length] }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Faixa etária */}
+                      {analytics.demographics.ageGroups.length > 0 && (
+                        <div>
+                          <p className="text-sm font-semibold text-gray-700 mb-3">Faixa Etária</p>
+                          <BarChart
+                            data={analytics.demographics.ageGroups.map(g => ({ label: g.group, value: g.count }))}
+                            labelKey="label"
+                            valueKey="value"
+                            color="#003B4A"
+                          />
+                        </div>
+                      )}
+
+                      {/* Bairros */}
+                      {analytics.demographics.neighborhoodBreakdown.length > 0 && (
+                        <div>
+                          <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1">
+                            <FaMapMarkerAlt className="text-[#00C2A8]" /> Top Bairros
+                          </p>
+                          <div className="space-y-1.5">
+                            {analytics.demographics.neighborhoodBreakdown.slice(0, 6).map((n) => {
+                              const total = analytics.demographics.neighborhoodBreakdown.reduce((s, x) => s + x.count, 0);
+                              const pct = total > 0 ? Math.round((n.count / total) * 100) : 0;
+                              return (
+                                <div key={n.neighborhood} className="flex items-center justify-between gap-2 text-xs">
+                                  <span className="text-gray-600 truncate flex-1">{n.neighborhood}</span>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <div className="w-16 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                      <div className="h-full bg-[#00C2A8] rounded-full" style={{ width: `${pct}%` }} />
+                                    </div>
+                                    <span className="font-bold text-gray-700 w-6 text-right">{n.count}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Dados de Consumo ────────────────────────────────────────── */}
+              {analytics.consumption && (
+                <div className="bg-white rounded-2xl shadow-sm p-5">
+                  <h2 className="font-bold text-gray-800 mb-1 flex items-center gap-2">
+                    <FaUtensils className="text-[#00C2A8]" /> Dados de Consumo
+                  </h2>
+                  <p className="text-xs text-gray-400 mb-4">
+                    Registre vendas de bar/comida via <span className="font-mono text-gray-500">POST /event-consumption-records</span>
+                  </p>
+
+                  {analytics.consumption.totalItems === 0 ? (
+                    <p className="text-gray-400 text-sm text-center py-6">
+                      Nenhum registro de consumo para este evento. Registre vendas de bar/alimentação para visualizar aqui.
+                    </p>
+                  ) : (
+                    <>
+                      {/* Totais */}
+                      <div className="grid grid-cols-2 gap-4 mb-5">
+                        <div className="bg-gray-50 rounded-xl p-4">
+                          <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">Itens Vendidos</p>
+                          <p className="text-2xl font-black text-gray-900">{analytics.consumption.totalItems}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-xl p-4">
+                          <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">Receita Total</p>
+                          <p className="text-2xl font-black text-[#00C2A8]">{fmtBRL(analytics.consumption.totalRevenue)}</p>
+                        </div>
+                      </div>
+
+                      {/* Por categoria */}
+                      {analytics.consumption.byCategory.length > 0 && (
+                        <div className="mb-5">
+                          <p className="text-sm font-semibold text-gray-700 mb-3">Por Categoria</p>
+                          <div className="space-y-2">
+                            {analytics.consumption.byCategory.map((cat) => {
+                              const totalQty = analytics.consumption.byCategory.reduce((s, x) => s + x.totalQuantity, 0);
+                              const pct = totalQty > 0 ? Math.round((cat.totalQuantity / totalQty) * 100) : 0;
+                              const color = CATEGORY_COLORS[cat.category] ?? '#64748b';
+                              return (
+                                <div key={cat.category}>
+                                  <div className="flex justify-between text-xs mb-1">
+                                    <span className="font-medium text-gray-700">{CATEGORY_LABELS[cat.category] ?? cat.category}</span>
+                                    <span className="text-gray-500">{cat.totalQuantity} itens · {fmtBRL(cat.totalRevenue)}</span>
+                                  </div>
+                                  <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Itens mais vendidos */}
+                      {analytics.consumption.items.length > 0 && (
+                        <div>
+                          <p className="text-sm font-semibold text-gray-700 mb-3">Itens Mais Vendidos</p>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="bg-gray-50 text-gray-500 uppercase text-xs">
+                                  {['Item', 'Categoria', 'Qtd', 'Receita'].map(h => (
+                                    <th key={h} className="px-3 py-2 text-left font-semibold">{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {analytics.consumption.items.slice(0, 10).map((item, i) => (
+                                  <tr key={i} className="border-t border-gray-50">
+                                    <td className="px-3 py-2 font-medium text-gray-900">{item.itemName}</td>
+                                    <td className="px-3 py-2">
+                                      <span
+                                        className="px-2 py-0.5 rounded-full text-xs font-semibold text-white"
+                                        style={{ background: CATEGORY_COLORS[item.category] ?? '#64748b' }}
+                                      >
+                                        {CATEGORY_LABELS[item.category] ?? item.category}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2 font-bold text-gray-800">{item.totalQuantity}</td>
+                                    <td className="px-3 py-2 text-[#00C2A8] font-semibold">{fmtBRL(item.totalRevenue)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
 
               {/* ── Feedback / NPS ───────────────────────────────────────────── */}
               {feedback && (

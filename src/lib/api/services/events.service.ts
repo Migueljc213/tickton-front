@@ -32,6 +32,10 @@ export const eventsService = {
     return apiClient.get<FindAllEventsResponse>(API_ENDPOINTS.events.base);
   },
 
+  async getEventsByOrganizer(organizerId: number): Promise<FindAllEventsResponse> {
+    return apiClient.get<FindAllEventsResponse>(API_ENDPOINTS.events.byOrganizer(organizerId));
+  },
+
   async getEventById(id: number): Promise<Event> {
     return apiClient.get<Event>(`${API_ENDPOINTS.events.base}/${id}`);
   },

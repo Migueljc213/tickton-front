@@ -10,6 +10,7 @@ export const API_ENDPOINTS = {
   events: {
     base: '/events',
     search: '/events/search',
+    byOrganizer: (organizerId: number) => `/events/organizer/${organizerId}`,
     posts: (eventId: number) => `/events/${eventId}/posts`,
   },
   orders: {

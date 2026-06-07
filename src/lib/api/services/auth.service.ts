@@ -22,6 +22,7 @@ export const authService = {
 
   logout(): void {
     apiClient.removeToken();
+    storage.removeUserId();
     storage.removeUserEmail();
     storage.removeUserName();
     storage.removeUserRole();
