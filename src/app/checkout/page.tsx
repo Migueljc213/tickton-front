@@ -90,18 +90,52 @@ function CheckoutContent() {
       return;
     }
     try {
-      const res = await fetch(`${API_URL}/orders`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          items: selections.map((s) => ({ ticketId: s.ticketId, quantity: s.quantity })),
-          backUrl: window.location.origin,
-        }),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.message ?? 'Erro ao criar pedido');
+      let res: Response;
+      try {
+        res = await fetch(`${API_URL}/orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            items: selections.map((s) => ({ ticketId: s.ticketId, quantity: s.quantity })),
+            backUrl: window.location.origin,
+          }),
+        });
+      } catch {
+        throw new Error(
+          'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.',
+        );
       }
+
+      if (!res.ok) {
+        let message: string | undefined;
+        try {
+          const d = await res.json();
+          message = Array.isArray(d.message) ? d.message[0] : d.message;
+        } catch {
+          // body não é JSON
+        }
+
+        if (res.status === 401) {
+          throw new Error('Sessão expirada. Faça login novamente para continuar.');
+        }
+        if (res.status === 403) {
+          throw new Error('Você não tem permissão para realizar esta compra.');
+        }
+        if (res.status === 404) {
+          throw new Error(message ?? 'Ingresso não encontrado. Atualize a página e tente novamente.');
+        }
+        if (res.status === 409) {
+          throw new Error(message ?? 'Não há ingressos disponíveis para a quantidade solicitada.');
+        }
+        if (res.status === 422) {
+          throw new Error(message ?? 'Dados inválidos. Verifique a seleção e tente novamente.');
+        }
+        if (res.status >= 500) {
+          throw new Error('Erro interno do servidor. Tente novamente em instantes.');
+        }
+        throw new Error(message ?? 'Erro ao processar o pedido. Tente novamente.');
+      }
+
       const data = await res.json();
 
       // Fluxo sem pagamento (BYPASS_PAYMENT ativo no backend)
@@ -114,7 +148,7 @@ function CheckoutContent() {
       const url = process.env.NODE_ENV === 'production' ? data.initPoint : data.sandboxInitPoint;
       window.location.href = url;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao processar pagamento');
+      setError(err instanceof Error ? err.message : 'Erro ao processar pagamento. Tente novamente.');
       setSubmitting(false);
     }
   };
@@ -278,13 +312,13 @@ function CheckoutContent() {
         </div>
       </div>
 
-      {/* Info Mercado Pago */}
-      <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-        <FaShieldAlt className="text-blue-400 mt-0.5 shrink-0" />
+      {/* Info pagamento */}
+      <div className="flex items-start gap-3 bg-[#00C2A8]/8 border border-[#00C2A8]/20 rounded-xl px-4 py-3">
+        <FaShieldAlt className="text-[#00C2A8] mt-0.5 shrink-0" />
         <div>
-          <p className="text-sm font-semibold text-blue-800">Pagamento via Mercado Pago</p>
-          <p className="text-xs text-blue-600 mt-0.5">
-            Você será redirecionado para o ambiente seguro do Mercado Pago — PIX, cartão ou boleto.
+          <p className="text-sm font-semibold text-gray-800">Compra protegida</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Seus ingressos serão gerados imediatamente após a confirmação do pedido.
           </p>
         </div>
       </div>
@@ -298,12 +332,12 @@ function CheckoutContent() {
         {submitting ? (
           <>
             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            Redirecionando...
+            Processando...
           </>
         ) : (
           <>
-            <FaExternalLinkAlt />
-            Ir para Pagamento
+            <FaLock className="text-sm" />
+            Confirmar compra
           </>
         )}
       </button>
@@ -324,7 +358,7 @@ function CheckoutContent() {
             </button>
             <div>
               <h1 className="text-base font-bold text-gray-900">Finalizar Compra</h1>
-              <p className="text-xs text-gray-400">Pagamento seguro via Mercado Pago</p>
+              <p className="text-xs text-gray-400">Seus dados estão protegidos</p>
             </div>
           </div>
         </div>
@@ -431,7 +465,7 @@ function CheckoutContent() {
               <div>
                 <p className="text-sm font-semibold text-gray-800">Compra 100% Segura</p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Pagamento processado pelo Mercado Pago com criptografia SSL.
+                  Transação protegida com criptografia SSL de ponta a ponta.
                 </p>
               </div>
             </div>

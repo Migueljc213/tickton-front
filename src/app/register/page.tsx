@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FaEye, FaEyeSlash, FaTicketAlt, FaCheckCircle } from 'react-icons/fa';
 import { authService } from '@/lib/api/services/auth.service';
+import { maskCpfCnpj } from '@/lib/utils/format';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -24,7 +25,8 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const value = e.target.name === 'cpfCnpj' ? maskCpfCnpj(e.target.value) : e.target.value;
+    setForm({ ...form, [e.target.name]: value });
     setError(null);
   };
 
@@ -174,6 +176,7 @@ export default function RegisterPage() {
                 value={form.cpfCnpj}
                 onChange={handleChange}
                 placeholder="000.000.000-00"
+                maxLength={18}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00C2A8] text-sm transition-all"
               />
             </div>

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { FaArrowLeft, FaUser, FaLock, FaCheck, FaEye, FaEyeSlash, FaTicketAlt } from 'react-icons/fa';
 import { usersService } from '@/lib/api/services/users.service';
 import { storage } from '@/lib/utils/storage';
+import { maskCpfCnpj } from '@/lib/utils/format';
 import type { User } from '@/types/api';
 
 type Tab = 'profile' | 'password';
@@ -39,7 +40,7 @@ export default function SettingsPage() {
         setUser(u);
         setName(u.name);
         setEmail(u.email);
-        setCpfCnpj(u.cpfCnpj ?? '');
+        setCpfCnpj(u.cpfCnpj ? maskCpfCnpj(u.cpfCnpj) : '');
       })
       .catch(() => router.push('/login'))
       .finally(() => setLoading(false));
@@ -197,9 +198,10 @@ export default function SettingsPage() {
                   <label style={labelStyle}>CPF / CNPJ</label>
                   <input
                     value={cpfCnpj}
-                    onChange={e => setCpfCnpj(e.target.value)}
+                    onChange={e => setCpfCnpj(maskCpfCnpj(e.target.value))}
                     style={inputStyle}
                     placeholder="000.000.000-00"
+                    maxLength={18}
                   />
                 </div>
               </div>
