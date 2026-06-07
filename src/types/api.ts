@@ -20,6 +20,8 @@ export interface LoginResponse {
   accessToken: string;
   userId: number;
   email: string;
+  name: string;
+  role: string;
 }
 
 // Event Types
@@ -336,6 +338,7 @@ export interface User extends BaseEntity {
   email: string;
   cpfCnpj: string;
   bankInfo?: string;
+  role: string;
 }
 
 export interface CreateUserRequest {

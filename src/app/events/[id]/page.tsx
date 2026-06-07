@@ -17,157 +17,109 @@ import {
   FaMinus,
   FaPlus,
   FaCheckCircle,
-  FaComments,
-  FaPaperPlane,
-  FaLock,
+  FaChevronLeft,
+  FaChevronRight,
+  FaUserTie,
+  FaExternalLinkAlt,
+  FaCheckDouble,
 } from 'react-icons/fa';
 import { useEvent, useTickets } from '@/hooks';
 import { useAuth } from '@/hooks';
 import { formatPrice, formatLongDate, formatTime } from '@/lib/utils/format';
 import type { Ticket } from '@/types/api';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
-
-interface EventPost {
-  id: number;
-  userId: number;
-  userName: string;
-  content: string;
-  createdAt: string;
-}
-
-function MuralSection({ eventId }: { eventId: number }) {
-  const { getToken, isAuthenticated } = useAuth();
-  const [posts, setPosts] = useState<EventPost[]>([]);
-  const [content, setContent] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch(`${API_URL}/event-posts/event/${eventId}`)
-      .then((r) => r.json())
-      .then((data) => setPosts(Array.isArray(data) ? data : []))
-      .catch(() => setPosts([]))
-      .finally(() => setLoading(false));
-  }, [eventId]);
-
-  const handlePost = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!content.trim()) return;
-    const token = getToken();
-    if (!token) { setError('Faça login para comentar'); return; }
-
-    setSubmitting(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_URL}/event-posts/event/${eventId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ content: content.trim() }),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.message ?? 'Erro ao publicar');
-      }
-      const newPost: EventPost = await res.json();
-      setPosts((prev) => [newPost, ...prev]);
-      setContent('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao publicar');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-      <h2 className="text-xl font-bold text-gray-900 mb-5 flex items-center gap-2">
-        <span className="w-1 h-5 bg-turquoise rounded-full" />
-        <FaComments className="text-turquoise" />
-        Mural do Evento
-      </h2>
-
-      {/* Input */}
-      {isAuthenticated() ? (
-        <form onSubmit={handlePost} className="mb-5">
-          {error && (
-            <p className="text-red-500 text-xs mb-2">{error}</p>
-          )}
-          <div className="flex gap-3">
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Compartilhe sua experiência ou faça uma pergunta..."
-              rows={2}
-              className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-turquoise text-sm resize-none"
-            />
-            <button
-              type="submit"
-              disabled={submitting || !content.trim()}
-              className="px-4 py-2 text-white rounded-xl font-semibold flex items-center gap-2 disabled:opacity-50 transition-all hover:opacity-90 shrink-0"
-              style={{ backgroundColor: '#00C2A8' }}
-            >
-              <FaPaperPlane className="text-xs" />
-              {submitting ? '...' : 'Postar'}
-            </button>
-          </div>
-          <p className="text-xs text-gray-400 mt-1.5">
-            Apenas participantes com ingressos podem comentar.
-          </p>
-        </form>
-      ) : (
-        <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 rounded-xl px-4 py-3 mb-5">
-          <FaLock className="text-gray-400" />
-          <span>Faça login para participar do mural do evento.</span>
-        </div>
-      )}
-
-      {/* Posts */}
-      {loading ? (
-        <div className="space-y-3">
-          {[1, 2].map((i) => (
-            <div key={i} className="animate-pulse flex gap-3">
-              <div className="w-8 h-8 bg-gray-200 rounded-full shrink-0" />
-              <div className="flex-1 space-y-2">
-                <div className="h-3 bg-gray-200 rounded w-1/4" />
-                <div className="h-3 bg-gray-200 rounded w-3/4" />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : posts.length === 0 ? (
-        <div className="text-center py-8 text-gray-400">
-          <FaComments className="text-4xl mx-auto mb-2 opacity-30" />
-          <p className="text-sm">Nenhum comentário ainda. Seja o primeiro!</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {posts.map((post) => (
-            <div key={post.id} className="flex gap-3">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                style={{ backgroundColor: '#00C2A8' }}>
-                {post.userName.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 bg-gray-50 rounded-xl px-4 py-3">
-                <div className="flex justify-between items-start mb-1">
-                  <span className="text-xs font-semibold text-gray-700">{post.userName}</span>
-                  <span className="text-xs text-gray-400">
-                    {new Date(post.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-700 leading-relaxed">{post.content}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+import EventWall from '@/components/events/EventWall';
 
 const CHECKOUT_PATH = '/checkout';
 const EVENTS_PATH   = '/events';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+
+interface OrganizerInfo {
+  id: number;
+  companyName: string;
+  description: string | null;
+  logoUrl: string | null;
+  city: string | null;
+  state: string | null;
+  website: string | null;
+  isVerified: boolean;
+}
+
+function parseEventImages(bannerUrl?: string | null): string[] {
+  if (!bannerUrl) return [];
+  try {
+    const parsed = JSON.parse(bannerUrl);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed as string[];
+  } catch {}
+  return [bannerUrl];
+}
+
+function ImageCarousel({ images, title, gradient }: { images: string[]; title: string; gradient: string }) {
+  const [current, setCurrent] = useState(0);
+
+  if (images.length === 0) {
+    return (
+      <div className={`w-full h-full bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+        <span className="text-[120px] opacity-40 blur-sm select-none" />
+      </div>
+    );
+  }
+
+  if (images.length === 1) {
+    return <img src={images[0]} alt={title} className="w-full h-full object-cover" />;
+  }
+
+  const prev = () => setCurrent(i => (i - 1 + images.length) % images.length);
+  const next = () => setCurrent(i => (i + 1) % images.length);
+
+  return (
+    <div className="w-full h-full relative group/carousel">
+      {images.map((src, i) => (
+        <img
+          key={src}
+          src={src}
+          alt={`${title} — imagem ${i + 1}`}
+          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
+          style={{ opacity: i === current ? 1 : 0, zIndex: i === current ? 1 : 0 }}
+        />
+      ))}
+
+      {/* Setas */}
+      <button
+        onClick={(e) => { e.stopPropagation(); prev(); }}
+        className="absolute left-14 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 text-white flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 transition-all hover:bg-black/60 backdrop-blur-sm"
+      >
+        <FaChevronLeft />
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); next(); }}
+        className="absolute right-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 text-white flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 transition-all hover:bg-black/60 backdrop-blur-sm"
+      >
+        <FaChevronRight />
+      </button>
+
+      {/* Dots */}
+      <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 flex gap-2">
+        {images.map((_, i) => (
+          <button
+            key={i}
+            onClick={(e) => { e.stopPropagation(); setCurrent(i); }}
+            className="rounded-full transition-all"
+            style={{
+              width: i === current ? 20 : 8,
+              height: 8,
+              background: i === current ? '#fff' : 'rgba(255,255,255,0.5)',
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Contador */}
+      <div className="absolute top-6 right-20 z-20 glass rounded-full px-3 py-1 text-white text-xs font-semibold">
+        {current + 1} / {images.length}
+      </div>
+    </div>
+  );
+}
 
 const CATEGORY_GRADIENT: Record<string, string> = {
   music:      'from-violet-500 to-purple-600',
@@ -227,10 +179,19 @@ export default function EventDetailsPage() {
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [ticketQuantity, setTicketQuantity] = useState(1);
   const [liked, setLiked] = useState(false);
+  const [organizer, setOrganizer] = useState<OrganizerInfo | null>(null);
 
   useEffect(() => {
     if (eventId) fetchTickets();
   }, [eventId, fetchTickets]);
+
+  useEffect(() => {
+    if (!event?.organizerId) return;
+    fetch(`${API_URL}/organizers/${event.organizerId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setOrganizer(data); })
+      .catch(() => {});
+  }, [event?.organizerId]);
 
   const getAvailable = (ticket: Ticket) => ticket.quantityAvailable - ticket.quantitySold;
   const calculateTotal = () => selectedTicket ? Number(selectedTicket.price) * ticketQuantity : 0;
@@ -268,6 +229,7 @@ export default function EventDetailsPage() {
   const gradient   = CATEGORY_GRADIENT[event.category] ?? CATEGORY_GRADIENT.other;
   const catIcon    = CATEGORY_ICON[event.category] ?? '🎊';
   const catLabel   = CATEGORY_LABEL[event.category] ?? 'Outros';
+  const images     = parseEventImages(event.bannerUrl);
   const hasTickets = tickets.length > 0;
   const venueInfo  = event.venueName || event.address || 'Local a definir';
   const locationInfo = [venueInfo, event.city, event.state].filter(Boolean).join(', ');
@@ -276,12 +238,8 @@ export default function EventDetailsPage() {
     <div className="min-h-screen bg-gray-50">
       {/* ========================= HERO DO EVENTO ========================= */}
       <div className="relative h-[52vh] min-h-[320px] overflow-hidden">
-        {event.bannerUrl ? (
-          <img
-            src={event.bannerUrl}
-            alt={event.title}
-            className="w-full h-full object-cover"
-          />
+        {images.length > 0 ? (
+          <ImageCarousel images={images} title={event.title} gradient={gradient} />
         ) : (
           <div className={`w-full h-full bg-gradient-to-br ${gradient} flex items-center justify-center`}>
             <span className="text-[120px] opacity-40 blur-sm select-none">{catIcon}</span>
@@ -405,8 +363,75 @@ export default function EventDetailsPage() {
               </div>
             )}
 
+            {/* Card do Organizador */}
+            {organizer && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <span className="w-1 h-5 bg-turquoise rounded-full" />
+                  Sobre o Organizador
+                </h2>
+                <div className="flex items-start gap-4">
+                  {/* Logo */}
+                  <div className="flex-shrink-0">
+                    {organizer.logoUrl ? (
+                      <img
+                        src={organizer.logoUrl}
+                        alt={organizer.companyName}
+                        className="w-16 h-16 rounded-2xl object-cover border border-gray-100"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-black"
+                        style={{ background: 'linear-gradient(135deg,#003B4A,#00C2A8)' }}>
+                        {organizer.companyName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-bold text-gray-900 text-lg">{organizer.companyName}</h3>
+                      {organizer.isVerified && (
+                        <span className="flex items-center gap-1 text-[#00C2A8] text-xs font-bold bg-[#00C2A8]/10 px-2 py-0.5 rounded-full">
+                          <FaCheckDouble className="text-[10px]" /> Verificado
+                        </span>
+                      )}
+                    </div>
+                    {(organizer.city || organizer.state) && (
+                      <p className="text-sm text-gray-400 mt-0.5 flex items-center gap-1">
+                        <FaMapMarkerAlt className="text-[10px]" />
+                        {[organizer.city, organizer.state].filter(Boolean).join(' - ')}
+                      </p>
+                    )}
+                    {organizer.description && (
+                      <p className="text-sm text-gray-600 mt-2 line-clamp-3">{organizer.description}</p>
+                    )}
+                    <div className="flex items-center gap-3 mt-3">
+                      <a
+                        href={`/organizers/${organizer.id}`}
+                        className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#00C2A8] hover:underline"
+                      >
+                        <FaUserTie className="text-xs" />
+                        Ver perfil completo
+                        <FaExternalLinkAlt className="text-[10px]" />
+                      </a>
+                      {organizer.website && (
+                        <a
+                          href={organizer.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-gray-400 hover:text-gray-700 transition-colors"
+                        >
+                          Site oficial
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Mural */}
-            {eventId && <MuralSection eventId={eventId} />}
+            {eventId && <EventWall eventId={eventId} />}
           </div>
 
           {/* ---- Sidebar de ingressos ---- */}

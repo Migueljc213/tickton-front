@@ -505,6 +505,31 @@ body {
   -webkit-box-orient: vertical;
 }
 
+/* ===== FORM HELPERS (organizer forms) ===== */
+.label-form {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.375rem;
+}
+
+.input-form {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  background: white;
+}
+
+.input-form:focus {
+  border-color: #00C2A8;
+  box-shadow: 0 0 0 3px rgba(0, 194, 168, 0.1);
+}
+
 /* ===== INPUTS ===== */
 input, select, textarea {
   color: var(--gray-900);

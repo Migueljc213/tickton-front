@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
@@ -48,14 +49,18 @@ export default function OrganizerPage() {
                 
                 {/* CTAs Principais */}
                 <div className="flex flex-col sm:flex-row gap-4 mb-12">
-                  <Button size="lg" className="bg-turquoise hover:bg-turquoise-600 text-white text-lg px-8 py-4 font-semibold">
-                    <FaRocket className="mr-3" />
-                    Começar Gratuitamente
-                  </Button>
-                  <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-dark-blue text-lg px-8 py-4 font-semibold">
-                    <FaChartLine className="mr-3" />
-                    Ver Demonstração
-                  </Button>
+                  <Link href="/register">
+                    <Button size="lg" className="bg-turquoise hover:bg-turquoise-600 text-white text-lg px-8 py-4 font-semibold">
+                      <FaRocket className="mr-3" />
+                      Começar Gratuitamente
+                    </Button>
+                  </Link>
+                  <Link href="/events">
+                    <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-dark-blue text-lg px-8 py-4 font-semibold">
+                      <FaChartLine className="mr-3" />
+                      Ver Demonstração
+                    </Button>
+                  </Link>
                 </div>
 
                 {/* Estatísticas */}
@@ -302,9 +307,11 @@ export default function OrganizerPage() {
                     <span className="text-gray-700">Relatórios básicos</span>
                   </div>
                 </div>
-                <Button className="w-full mt-6" variant="outline">
-                  Começar Grátis
-                </Button>
+                <Link href="/register" className="block mt-6">
+                  <Button className="w-full" variant="outline">
+                    Começar Grátis
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
 
@@ -346,9 +353,11 @@ export default function OrganizerPage() {
                     <span className="text-gray-700">Integrações</span>
                   </div>
                 </div>
-                <Button className="w-full mt-6 bg-turquoise hover:bg-turquoise-600 text-white">
-                  Começar Agora
-                </Button>
+                <Link href="/register" className="block mt-6">
+                  <Button className="w-full bg-turquoise hover:bg-turquoise-600 text-white">
+                    Começar Agora
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
 
@@ -501,15 +510,19 @@ export default function OrganizerPage() {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" className="bg-turquoise hover:bg-turquoise-600 text-white text-lg px-8 py-4 font-semibold">
-                <FaRocket className="mr-3" />
-                Começar Gratuitamente
-                <FaArrowRight className="ml-3" />
-              </Button>
-              <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-dark-blue text-lg px-8 py-4 font-semibold">
-                <FaHeadset className="mr-3" />
-                Falar com Especialista
-              </Button>
+              <Link href="/register">
+                <Button size="lg" className="bg-turquoise hover:bg-turquoise-600 text-white text-lg px-8 py-4 font-semibold">
+                  <FaRocket className="mr-3" />
+                  Começar Gratuitamente
+                  <FaArrowRight className="ml-3" />
+                </Button>
+              </Link>
+              <Link href="/help">
+                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-dark-blue text-lg px-8 py-4 font-semibold">
+                  <FaHeadset className="mr-3" />
+                  Falar com Especialista
+                </Button>
+              </Link>
             </div>
             
             <p className="text-sm text-white/70 mt-6">

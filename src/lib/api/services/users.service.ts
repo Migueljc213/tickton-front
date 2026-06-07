@@ -8,6 +8,10 @@ import type {
 } from '@/types/api';
 
 export const usersService = {
+  async getMe(): Promise<User> {
+    return apiClient.get<User>(API_ENDPOINTS.users.me);
+  },
+
   async getAllUsers(): Promise<FindAllUsersResponse> {
     return apiClient.get<FindAllUsersResponse>(API_ENDPOINTS.users.base);
   },

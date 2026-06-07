@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FaEye, FaEyeSlash, FaTicketAlt, FaCheckCircle } from 'react-icons/fa';
+import { authService } from '@/lib/api/services/auth.service';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -62,8 +63,14 @@ export default function RegisterPage() {
         throw new Error(data.message ?? 'Erro ao criar conta. Tente novamente.');
       }
 
+      // Login automático após registro
+      await authService.login({
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+      });
+
       setSuccess(true);
-      setTimeout(() => router.push('/login'), 2500);
+      setTimeout(() => router.push('/events'), 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro inesperado');
     } finally {
@@ -79,7 +86,7 @@ export default function RegisterPage() {
             <FaCheckCircle className="text-green-500 text-3xl" />
           </div>
           <h2 className="text-xl font-bold text-gray-800">Conta criada!</h2>
-          <p className="text-gray-500 text-sm">Redirecionando para o login...</p>
+          <p className="text-gray-500 text-sm">Entrando automaticamente...</p>
         </div>
       </div>
     );

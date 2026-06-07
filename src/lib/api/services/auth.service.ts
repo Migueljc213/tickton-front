@@ -1,5 +1,6 @@
 import apiClient from '../client';
 import { API_ENDPOINTS } from '../config';
+import { storage } from '@/lib/utils/storage';
 import type { LoginRequest, LoginResponse } from '@/types/api';
 
 export const authService = {
@@ -12,12 +13,18 @@ export const authService = {
 
     apiClient.setToken(response.accessToken);
     apiClient.setUserId(response.userId);
+    storage.setUserEmail(response.email);
+    storage.setUserName(response.name ?? response.email);
+    storage.setUserRole(response.role ?? 'participant');
 
     return response;
   },
 
   logout(): void {
     apiClient.removeToken();
+    storage.removeUserEmail();
+    storage.removeUserName();
+    storage.removeUserRole();
   },
 
   isAuthenticated(): boolean {

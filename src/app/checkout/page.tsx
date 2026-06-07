@@ -2,16 +2,16 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   FaArrowLeft,
   FaLock,
   FaCheck,
   FaTicketAlt,
   FaCalendarAlt,
+  FaMapMarkerAlt,
   FaShoppingCart,
   FaExternalLinkAlt,
+  FaShieldAlt,
 } from 'react-icons/fa';
 import { useEvent, useTickets, useAuth } from '@/hooks';
 import { formatPrice, formatLongDate } from '@/lib/utils/format';
@@ -27,11 +27,19 @@ interface TicketSelection {
   totalPrice: number;
 }
 
-const CHECKOUT_STEPS = [
-  { id: 'tickets', title: 'Ingressos', description: 'Selecione' },
-  { id: 'review', title: 'Revisão', description: 'Confirme' },
-  { id: 'payment', title: 'Pagamento', description: 'Mercado Pago' },
-] as const;
+const STEPS = ['Ingressos', 'Revisão', 'Pagamento'] as const;
+
+/* ─── Skeleton de carregamento ─── */
+function LoadingSkeleton() {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="text-center space-y-4">
+        <div className="w-12 h-12 border-4 border-[#00C2A8] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-gray-500 text-sm">Carregando evento...</p>
+      </div>
+    </div>
+  );
+}
 
 function CheckoutContent() {
   const searchParams = useSearchParams();
@@ -44,248 +52,242 @@ function CheckoutContent() {
   const { event, loading: eventLoading } = useEvent(eventId);
   const { tickets, loading: ticketsLoading, fetchTickets } = useTickets(eventId || undefined);
 
-  const [currentStep, setCurrentStep] = useState(0);
-  const [ticketSelections, setTicketSelections] = useState<TicketSelection[]>([]);
+  const [step, setStep] = useState(0);
+  const [selections, setSelections] = useState<TicketSelection[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [redirecting, setRedirecting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (eventId) fetchTickets();
   }, [eventId, fetchTickets]);
 
-  const calculateTotal = () =>
-    ticketSelections.reduce((sum, s) => sum + s.totalPrice, 0);
+  const total = selections.reduce((s, x) => s + x.totalPrice, 0);
+  const getAvailable = (t: Ticket) => t.quantityAvailable - t.quantitySold;
 
-  const updateTicketSelection = (ticket: Ticket, quantity: number) => {
-    if (quantity === 0) {
-      setTicketSelections((prev) => prev.filter((ts) => ts.ticketId !== ticket.id));
+  const updateSelection = (ticket: Ticket, qty: number) => {
+    if (qty === 0) {
+      setSelections((p) => p.filter((s) => s.ticketId !== ticket.id));
       return;
     }
-    setTicketSelections((prev) => {
-      const filtered = prev.filter((ts) => ts.ticketId !== ticket.id);
-      return [
-        ...filtered,
-        {
-          ticketId: ticket.id,
-          ticketName: ticket.name,
-          quantity,
-          unitPrice: Number(ticket.price),
-          totalPrice: Number(ticket.price) * quantity,
-        },
-      ];
-    });
+    setSelections((p) => [
+      ...p.filter((s) => s.ticketId !== ticket.id),
+      {
+        ticketId: ticket.id,
+        ticketName: ticket.name,
+        quantity: qty,
+        unitPrice: Number(ticket.price),
+        totalPrice: Number(ticket.price) * qty,
+      },
+    ]);
   };
 
-  const getAvailable = (ticket: Ticket) => ticket.quantityAvailable - ticket.quantitySold;
-
-  /** Cria o pedido no backend e redireciona para o Mercado Pago */
-  const handleGoToPayment = async () => {
+  const handlePayment = async () => {
     setError(null);
-    setRedirecting(true);
-
+    setSubmitting(true);
     const token = getToken();
     if (!token) {
       router.push('/login?redirect=/checkout?eventId=' + eventId);
       return;
     }
-
     try {
       const res = await fetch(`${API_URL}/orders`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          items: ticketSelections.map((s) => ({
-            ticketId: s.ticketId,
-            quantity: s.quantity,
-          })),
+          items: selections.map((s) => ({ ticketId: s.ticketId, quantity: s.quantity })),
           backUrl: window.location.origin,
         }),
       });
-
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message ?? 'Erro ao criar pedido');
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.message ?? 'Erro ao criar pedido');
       }
-
       const data = await res.json();
-
-      // Redireciona para o checkout do Mercado Pago
-      // Em sandbox usa sandboxInitPoint; em produção usa initPoint
-      const url =
-        process.env.NODE_ENV === 'production' ? data.initPoint : data.sandboxInitPoint;
-
+      const url = process.env.NODE_ENV === 'production' ? data.initPoint : data.sandboxInitPoint;
       window.location.href = url;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao processar pagamento');
-      setRedirecting(false);
+      setSubmitting(false);
     }
   };
 
-  if (eventLoading || ticketsLoading) {
+  if (eventLoading || ticketsLoading) return <LoadingSkeleton />;
+
+  if (!event || !eventId) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="w-12 h-12 border-4 border-turquoise border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-gray-500">Carregando evento...</p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-sm p-10 text-center max-w-sm">
+          <div className="text-4xl mb-4">😕</div>
+          <p className="text-gray-700 font-semibold mb-4">Evento não encontrado</p>
+          <button
+            onClick={() => router.push('/events')}
+            className="px-6 py-2.5 bg-[#00C2A8] text-white rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity"
+          >
+            Ver Eventos
+          </button>
         </div>
       </div>
     );
   }
 
-  if (!event || !eventId) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="max-w-md">
-          <CardContent className="p-8 text-center">
-            <p className="text-red-600 mb-4">Evento não encontrado</p>
-            <Button onClick={() => router.push('/events')}>Voltar para Eventos</Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  /* ── STEP 0: seleção de ingressos ── */
-  const renderStep0 = () => (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-800 mb-1">Selecione seus ingressos</h2>
-        <p className="text-gray-500">{event.title}</p>
+  /* ─── STEP 0: selecionar ingressos ─── */
+  const renderTickets = () => (
+    <div className="space-y-4">
+      <div className="mb-6">
+        <h2 className="text-xl font-bold text-gray-900">Selecione seus ingressos</h2>
+        <p className="text-gray-500 text-sm mt-1">{event.title}</p>
       </div>
 
       {tickets.length === 0 ? (
-        <p className="text-gray-500 text-center py-12">Nenhum ingresso disponível</p>
+        <div className="text-center py-14 text-gray-400">
+          <FaTicketAlt className="text-4xl mx-auto mb-3 opacity-40" />
+          <p className="text-sm">Nenhum ingresso disponível</p>
+        </div>
       ) : (
         tickets.map((ticket) => {
-          const available = getAvailable(ticket);
-          const selected = ticketSelections.find((ts) => ts.ticketId === ticket.id)?.quantity ?? 0;
-          const soldOut = available <= 0 || !ticket.isActive;
+          const avail = getAvailable(ticket);
+          const sel = selections.find((s) => s.ticketId === ticket.id)?.quantity ?? 0;
+          const soldOut = avail <= 0 || !ticket.isActive;
 
           return (
-            <Card key={ticket.id} className={`transition-all ${selected > 0 ? 'ring-2 ring-[#00C2A8]' : ''}`}>
-              <CardContent className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-lg font-semibold text-gray-800">{ticket.name}</h3>
-                      {soldOut && (
-                        <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Esgotado</span>
-                      )}
-                    </div>
-                    {ticket.description && (
-                      <p className="text-sm text-gray-500 mb-2">{ticket.description}</p>
-                    )}
-                    <span className="text-2xl font-bold" style={{ color: '#00C2A8' }}>
-                      {formatPrice(Number(ticket.price))}
-                    </span>
-                    {!soldOut && (
-                      <span className="text-xs text-gray-400 ml-3">{available} disponíveis</span>
-                    )}
-                  </div>
-                </div>
-
-                {!soldOut && (
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => updateTicketSelection(ticket, Math.max(0, selected - 1))}
-                        disabled={selected <= 0}
-                        className="w-9 h-9 rounded-full border border-gray-300 flex items-center justify-center text-lg font-bold disabled:opacity-40 hover:border-[#00C2A8] hover:text-[#00C2A8] transition-colors"
-                      >
-                        −
-                      </button>
-                      <span className="w-8 text-center font-semibold text-gray-800">{selected}</span>
-                      <button
-                        onClick={() => updateTicketSelection(ticket, Math.min(available, ticket.maxPerOrder, selected + 1))}
-                        disabled={selected >= Math.min(available, ticket.maxPerOrder)}
-                        className="w-9 h-9 rounded-full border border-gray-300 flex items-center justify-center text-lg font-bold disabled:opacity-40 hover:border-[#00C2A8] hover:text-[#00C2A8] transition-colors"
-                      >
-                        +
-                      </button>
-                    </div>
-                    {selected > 0 && (
-                      <span className="text-gray-600 font-medium">
-                        = {formatPrice(Number(ticket.price) * selected)}
+            <div
+              key={ticket.id}
+              className={`border-2 rounded-2xl p-5 transition-all ${
+                soldOut
+                  ? 'border-gray-100 bg-gray-50 opacity-60'
+                  : sel > 0
+                  ? 'border-[#00C2A8] bg-[#00C2A8]/5'
+                  : 'border-gray-200 bg-white hover:border-[#00C2A8]/40'
+              }`}
+            >
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-gray-900">{ticket.name}</h3>
+                    {soldOut && (
+                      <span className="text-[10px] font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
+                        Esgotado
                       </span>
                     )}
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                  {ticket.description && (
+                    <p className="text-xs text-gray-500 mt-0.5">{ticket.description}</p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className="text-xl font-bold text-[#00C2A8]">
+                    {Number(ticket.price) === 0 ? 'Grátis' : formatPrice(Number(ticket.price))}
+                  </p>
+                  {!soldOut && (
+                    <p className="text-[11px] text-gray-400">{avail} disponíveis</p>
+                  )}
+                </div>
+              </div>
+
+              {!soldOut && (
+                <div className="flex items-center gap-3 mt-2">
+                  <button
+                    onClick={() => updateSelection(ticket, Math.max(0, sel - 1))}
+                    disabled={sel <= 0}
+                    className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-600 font-bold text-lg disabled:opacity-30 hover:border-[#00C2A8] hover:text-[#00C2A8] transition-colors"
+                  >
+                    −
+                  </button>
+                  <span className="w-7 text-center font-bold text-gray-900">{sel}</span>
+                  <button
+                    onClick={() => updateSelection(ticket, Math.min(avail, ticket.maxPerOrder, sel + 1))}
+                    disabled={sel >= Math.min(avail, ticket.maxPerOrder)}
+                    className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-600 font-bold text-lg disabled:opacity-30 hover:border-[#00C2A8] hover:text-[#00C2A8] transition-colors"
+                  >
+                    +
+                  </button>
+                  {sel > 0 && (
+                    <span className="ml-1 text-sm font-semibold text-gray-700">
+                      = {formatPrice(Number(ticket.price) * sel)}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           );
         })
       )}
     </div>
   );
 
-  /* ── STEP 1: revisão e confirmação ── */
-  const renderStep1 = () => (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-800 mb-1">Revisar pedido</h2>
-        <p className="text-gray-500">Confirme os ingressos antes de pagar</p>
+  /* ─── STEP 1: revisão ─── */
+  const renderReview = () => (
+    <div className="space-y-5">
+      <div className="mb-6">
+        <h2 className="text-xl font-bold text-gray-900">Revisar pedido</h2>
+        <p className="text-gray-500 text-sm mt-1">Confirme seus ingressos antes de pagar</p>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
           {error}
         </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FaCalendarAlt className="text-[#00C2A8]" />
-            {event.title}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <p className="text-sm text-gray-500">{formatLongDate(event.eventDate)}</p>
-          {event.venueName && <p className="text-sm text-gray-500">{event.venueName}</p>}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FaTicketAlt className="text-[#00C2A8]" />
-            Ingressos
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0 space-y-3">
-          {ticketSelections.map((s) => (
-            <div key={s.ticketId} className="flex justify-between items-center py-2 border-b last:border-0">
-              <div>
-                <p className="font-medium text-gray-800">{s.ticketName}</p>
-                <p className="text-sm text-gray-500">{s.quantity}x {formatPrice(s.unitPrice)}</p>
-              </div>
-              <span className="font-semibold text-gray-800">{formatPrice(s.totalPrice)}</span>
-            </div>
-          ))}
-          <div className="flex justify-between items-center pt-2">
-            <span className="font-bold text-gray-800">Total</span>
-            <span className="text-xl font-bold" style={{ color: '#00C2A8' }}>
-              {formatPrice(calculateTotal())}
-            </span>
+      {/* Dados do evento */}
+      <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+        <p className="font-semibold text-gray-900 mb-2">{event.title}</p>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <FaCalendarAlt className="text-[#00C2A8] shrink-0" />
+            <span>{formatLongDate(event.eventDate)}</span>
           </div>
-        </CardContent>
-      </Card>
-
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-        <p className="font-medium mb-1">Pagamento via Mercado Pago</p>
-        <p>Você será redirecionado para o ambiente seguro do Mercado Pago onde poderá pagar com PIX, cartão de crédito/débito ou boleto.</p>
+          {(event.venueName || event.city) && (
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <FaMapMarkerAlt className="text-[#00C2A8] shrink-0" />
+              <span>{[event.venueName, event.city, event.state].filter(Boolean).join(', ')}</span>
+            </div>
+          )}
+        </div>
       </div>
 
-      <Button
-        className="w-full text-white py-4 text-lg font-semibold rounded-xl flex items-center justify-center gap-2"
+      {/* Lista de ingressos */}
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
+          <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+            <FaTicketAlt className="text-[#00C2A8]" /> Ingressos selecionados
+          </p>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {selections.map((s) => (
+            <div key={s.ticketId} className="flex justify-between items-center px-5 py-3">
+              <div>
+                <p className="font-medium text-gray-800 text-sm">{s.ticketName}</p>
+                <p className="text-xs text-gray-400">{s.quantity}x {formatPrice(s.unitPrice)}</p>
+              </div>
+              <span className="font-semibold text-gray-900">{formatPrice(s.totalPrice)}</span>
+            </div>
+          ))}
+          <div className="flex justify-between items-center px-5 py-4 bg-gray-50">
+            <span className="font-bold text-gray-900">Total</span>
+            <span className="text-xl font-bold text-[#00C2A8]">{formatPrice(total)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Info Mercado Pago */}
+      <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+        <FaShieldAlt className="text-blue-400 mt-0.5 shrink-0" />
+        <div>
+          <p className="text-sm font-semibold text-blue-800">Pagamento via Mercado Pago</p>
+          <p className="text-xs text-blue-600 mt-0.5">
+            Você será redirecionado para o ambiente seguro do Mercado Pago — PIX, cartão ou boleto.
+          </p>
+        </div>
+      </div>
+
+      <button
+        onClick={handlePayment}
+        disabled={submitting}
+        className="w-full py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-60 text-base"
         style={{ backgroundColor: '#00C2A8' }}
-        onClick={handleGoToPayment}
-        disabled={redirecting}
       >
-        {redirecting ? (
+        {submitting ? (
           <>
             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             Redirecionando...
@@ -296,133 +298,135 @@ function CheckoutContent() {
             Ir para Pagamento
           </>
         )}
-      </Button>
+      </button>
     </div>
   );
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8 max-w-5xl">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <button
-            onClick={() => router.back()}
-            className="text-gray-500 hover:text-[#00C2A8] transition-colors flex items-center gap-2"
-          >
-            <FaArrowLeft /> Voltar
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">Finalizar Compra</h1>
-            <p className="text-gray-500 text-sm">Pagamento seguro via Mercado Pago</p>
+      {/* Header */}
+      <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
+        <div className="container mx-auto px-4 max-w-5xl">
+          <div className="flex items-center gap-4 py-4">
+            <button
+              onClick={() => (step > 0 ? setStep(step - 1) : router.back())}
+              className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:border-[#00C2A8] hover:text-[#00C2A8] transition-colors"
+            >
+              <FaArrowLeft className="text-sm" />
+            </button>
+            <div>
+              <h1 className="text-base font-bold text-gray-900">Finalizar Compra</h1>
+              <p className="text-xs text-gray-400">Pagamento seguro via Mercado Pago</p>
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Step indicator */}
-        <div className="flex items-center justify-center mb-8">
-          {CHECKOUT_STEPS.map((step, index) => (
-            <div key={step.id} className="flex items-center">
-              <div className="flex flex-col items-center">
-                <div
-                  className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
-                    index < currentStep
-                      ? 'text-white'
-                      : index === currentStep
-                      ? 'border-2 text-[#00C2A8] border-[#00C2A8]'
-                      : 'bg-gray-100 text-gray-400'
-                  }`}
-                  style={index < currentStep ? { backgroundColor: '#00C2A8' } : {}}
-                >
-                  {index < currentStep ? <FaCheck className="w-4 h-4" /> : index + 1}
+      {/* Step indicator */}
+      <div className="bg-white border-b border-gray-100">
+        <div className="container mx-auto px-4 max-w-5xl py-4">
+          <div className="flex items-center justify-center gap-2">
+            {STEPS.map((label, i) => (
+              <div key={label} className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
+                      i < step
+                        ? 'bg-[#00C2A8] text-white'
+                        : i === step
+                        ? 'border-2 border-[#00C2A8] text-[#00C2A8]'
+                        : 'bg-gray-100 text-gray-400'
+                    }`}
+                  >
+                    {i < step ? <FaCheck className="text-xs" /> : i + 1}
+                  </div>
+                  <span
+                    className={`text-sm font-medium hidden sm:block ${
+                      i <= step ? 'text-gray-800' : 'text-gray-400'
+                    }`}
+                  >
+                    {label}
+                  </span>
                 </div>
-                <span className={`text-xs mt-1 font-medium ${index <= currentStep ? 'text-gray-700' : 'text-gray-400'}`}>
-                  {step.title}
-                </span>
+                {i < STEPS.length - 1 && (
+                  <div className={`w-12 h-0.5 mx-1 ${i < step ? 'bg-[#00C2A8]' : 'bg-gray-200'}`} />
+                )}
               </div>
-              {index < CHECKOUT_STEPS.length - 1 && (
-                <div className={`w-16 h-0.5 mx-2 mb-4 ${index < currentStep ? 'bg-[#00C2A8]' : 'bg-gray-200'}`} />
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
+      </div>
 
+      {/* Conteúdo principal */}
+      <div className="container mx-auto px-4 max-w-5xl py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main content */}
+          {/* Formulário */}
           <div className="lg:col-span-2">
-            <Card className="shadow-sm border-0">
-              <CardContent className="p-8">
-                {currentStep === 0 && renderStep0()}
-                {currentStep === 1 && renderStep1()}
-              </CardContent>
-            </Card>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8">
+              {step === 0 && renderTickets()}
+              {step === 1 && renderReview()}
+            </div>
 
-            {/* Navigation */}
-            <div className="flex justify-between mt-6">
-              <Button
-                variant="outline"
-                onClick={() => setCurrentStep((s) => Math.max(0, s - 1))}
-                disabled={currentStep === 0}
-                className="border-gray-300 text-gray-600 hover:border-[#00C2A8] hover:text-[#00C2A8]"
-              >
-                Anterior
-              </Button>
-              {currentStep < 1 && (
-                <Button
-                  onClick={() => setCurrentStep((s) => s + 1)}
-                  disabled={ticketSelections.length === 0}
-                  className="text-white"
+            {/* Botões de navegação */}
+            {step === 0 && (
+              <div className="mt-5">
+                <button
+                  onClick={() => setStep(1)}
+                  disabled={selections.length === 0}
+                  className="w-full py-4 rounded-xl font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-40 text-base"
                   style={{ backgroundColor: '#00C2A8' }}
                 >
-                  Continuar
-                </Button>
-              )}
-            </div>
+                  Continuar → Revisão
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Order summary sidebar */}
+          {/* Sidebar resumo */}
           <div className="space-y-4">
-            <Card className="shadow-sm border-0 sticky top-8">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <FaShoppingCart className="text-[#00C2A8]" />
-                  Resumo
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0 space-y-3">
-                <p className="font-medium text-gray-800 text-sm">{event.title}</p>
-                <p className="text-xs text-gray-500">{formatLongDate(event.eventDate)}</p>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sticky top-24">
+              <h3 className="font-bold text-gray-900 flex items-center gap-2 mb-4 pb-3 border-b border-gray-100">
+                <FaShoppingCart className="text-[#00C2A8]" /> Resumo
+              </h3>
 
-                {ticketSelections.length === 0 ? (
-                  <p className="text-xs text-gray-400 italic py-2">Nenhum ingresso selecionado</p>
+              <p className="font-semibold text-gray-800 text-sm">{event.title}</p>
+              <p className="text-xs text-gray-400 mt-1 flex items-center gap-1.5">
+                <FaCalendarAlt className="text-[#00C2A8]" />
+                {formatLongDate(event.eventDate)}
+              </p>
+
+              <div className="mt-4 space-y-2">
+                {selections.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">Nenhum ingresso selecionado</p>
                 ) : (
                   <>
-                    {ticketSelections.map((s) => (
+                    {selections.map((s) => (
                       <div key={s.ticketId} className="flex justify-between text-sm">
                         <span className="text-gray-500">{s.quantity}x {s.ticketName}</span>
-                        <span className="font-medium text-gray-800">{formatPrice(s.totalPrice)}</span>
+                        <span className="font-semibold text-gray-800">{formatPrice(s.totalPrice)}</span>
                       </div>
                     ))}
-                    <div className="border-t pt-3 flex justify-between">
-                      <span className="font-bold text-gray-800">Total</span>
-                      <span className="font-bold text-lg" style={{ color: '#00C2A8' }}>
-                        {formatPrice(calculateTotal())}
-                      </span>
+                    <div className="border-t border-gray-100 pt-3 flex justify-between items-center">
+                      <span className="font-bold text-gray-900 text-sm">Total</span>
+                      <span className="text-lg font-bold text-[#00C2A8]">{formatPrice(total)}</span>
                     </div>
                   </>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card className="shadow-sm border-0">
-              <CardContent className="p-4 flex items-start gap-3">
-                <FaLock className="text-[#00C2A8] mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-medium text-gray-800 text-sm">Compra 100% Segura</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Pagamento processado pelo Mercado Pago com criptografia SSL.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Badge segurança */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-[#00C2A8]/10 flex items-center justify-center shrink-0">
+                <FaLock className="text-[#00C2A8] text-xs" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Compra 100% Segura</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Pagamento processado pelo Mercado Pago com criptografia SSL.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -433,7 +437,7 @@ function CheckoutContent() {
 export default function CheckoutPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="w-10 h-10 border-4 border-[#00C2A8] border-t-transparent rounded-full animate-spin" />
       </div>
     }>

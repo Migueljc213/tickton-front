@@ -56,6 +56,7 @@ export default function EventCard({ event, showDistance = false, distance }: Eve
   const available = getAvailable();
   const minPrice = getMinPrice();
   const isFree = event.type === 'free';
+  const hasTicketInfo = event.tickets.length > 0;
   const isLowStock = available > 0 && available <= 10;
 
   return (
@@ -120,7 +121,7 @@ export default function EventCard({ event, showDistance = false, distance }: Eve
           {/* Preço no canto inferior */}
           <div className="absolute bottom-3 right-3">
             <span className={`text-white font-bold text-sm px-3 py-1.5 rounded-full shadow-md ${isFree ? 'bg-green-500' : 'bg-dark-blue/90 backdrop-blur-sm'}`}>
-              {isFree ? 'Gratuito' : `A partir de ${formatPrice(minPrice)}`}
+              {!hasTicketInfo ? 'Ver preços' : isFree ? 'Gratuito' : `A partir de ${formatPrice(minPrice)}`}
             </span>
           </div>
         </div>
@@ -173,7 +174,6 @@ export default function EventCard({ event, showDistance = false, distance }: Eve
             <Button
               size="sm"
               className="bg-turquoise hover:bg-turquoise-600 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm hover:shadow-md hover:shadow-turquoise/20 transition-all flex items-center gap-1.5"
-              onClick={(e) => e.preventDefault()}
             >
               <FaTicketAlt className="w-3 h-3" />
               Ver Detalhes

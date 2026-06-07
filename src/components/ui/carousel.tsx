@@ -6,7 +6,8 @@ import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 
 interface CarouselProps {
   title: string;
-  subtitle?: string;
+  subtitle?: React.ReactNode;
+  headerRight?: React.ReactNode;
   children: React.ReactNode;
   itemsPerView?: {
     mobile: number;
@@ -15,11 +16,12 @@ interface CarouselProps {
   };
 }
 
-export default function Carousel({ 
-  title, 
-  subtitle, 
-  children, 
-  itemsPerView = { mobile: 1, tablet: 2, desktop: 3 } 
+export default function Carousel({
+  title,
+  subtitle,
+  headerRight,
+  children,
+  itemsPerView = { mobile: 1, tablet: 2, desktop: 3 }
 }: CarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -62,8 +64,9 @@ export default function Carousel({
           {subtitle && (
             <p className="text-body-lg text-medium-gray">{subtitle}</p>
           )}
+          {headerRight && <div className="mt-1">{headerRight}</div>}
         </div>
-        
+
         {/* Navigation */}
         <div className="flex space-x-2">
           <Button

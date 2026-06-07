@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import {
   FaPlus,
@@ -23,13 +22,22 @@ import { formatPrice, formatDate } from '@/lib/utils/format';
 import { STATUS_COLORS, STATUS_LABELS, EVENT_STATUS } from '@/lib/utils/constants';
 import type { Event, CheckInDashboardResponse } from '@/types/api';
 
-const LOGIN_PATH = '/login';
+const LOGIN_PATH  = '/login';
 const EVENTS_PATH = '/events';
+
+const cardStyle: React.CSSProperties = {
+  background: '#ffffff',
+  border: '1px solid #f1f5f9',
+  borderRadius: '12px',
+  boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+  padding: '24px',
+};
 
 export default function OrganizerDashboard() {
   const router = useRouter();
   const { getUserId } = useAuth();
-  const { events: allEvents, loading: eventsLoading, fetchEvents } = useEvents();
+  // useEvents auto-fetches on mount — no need to call fetchEvents manually
+  const { events: allEvents, loading: eventsLoading } = useEvents();
   const { getCheckInDashboard } = useOrders();
 
   const [organizerEvents, setOrganizerEvents] = useState<Event[]>([]);
@@ -39,335 +47,285 @@ export default function OrganizerDashboard() {
     totalRevenue: 0,
     totalTicketsSold: 0,
   });
-  const [eventStats, setEventStats] = useState<{ [key: number]: CheckInDashboardResponse }>({});
-  const [loading, setLoading] = useState(true);
+  const [eventStats, setEventStats] = useState<Record<number, CheckInDashboardResponse>>({});
+  const [statsLoading, setStatsLoading] = useState(true);
+  const processed = useRef(false);
 
+  // Auth guard — runs once
   useEffect(() => {
-    const loadDashboard = async () => {
-      const userId = getUserId();
-      if (!userId) {
-        router.push(LOGIN_PATH);
-        return;
-      }
+    const userId = getUserId();
+    if (!userId) router.push(LOGIN_PATH);
+  }, [getUserId, router]);
 
-      setLoading(true);
-      
-      try {
-        await fetchEvents();
-        
-        const publishedEvents = allEvents.filter(e => e.isPublished);
-        setOrganizerEvents(publishedEvents);
+  // Process events once the hook finishes loading (avoids infinite loop from allEvents in deps)
+  useEffect(() => {
+    if (eventsLoading) return;
+    if (processed.current) return;
+    processed.current = true;
 
-        let totalRevenue = 0;
-        let totalTicketsSold = 0;
+    const run = async () => {
+      setStatsLoading(true);
+      const published = allEvents.filter(e => e.isPublished);
+      setOrganizerEvents(published);
 
-        const statsPromises = publishedEvents.map(async (event) => {
+      let totalRevenue = 0;
+      let totalTicketsSold = 0;
+      const statsMap: Record<number, CheckInDashboardResponse> = {};
+
+      await Promise.all(
+        published.map(async (event) => {
           try {
-            const dashboard = await getCheckInDashboard(event.id);
-            totalRevenue += dashboard.revenue;
-            totalTicketsSold += dashboard.totalTickets;
-            return { eventId: event.id, stats: dashboard };
-          } catch (err) {
-            console.error(`Error loading dashboard for event ${event.id}:`, err);
-            return null;
+            const d = await getCheckInDashboard(event.id);
+            totalRevenue += d.revenue;
+            totalTicketsSold += d.totalTickets;
+            statsMap[event.id] = d;
+          } catch {
+            // ignore per-event errors
           }
-        });
+        })
+      );
 
-        const statsResults = await Promise.all(statsPromises);
-        const statsMap: { [key: number]: CheckInDashboardResponse } = {};
-        statsResults.forEach(result => {
-          if (result) {
-            statsMap[result.eventId] = result.stats;
-          }
-        });
-        setEventStats(statsMap);
-
-        setStats({
-          totalEvents: publishedEvents.length,
-          activeEvents: publishedEvents.filter(e => 
-            e.status === EVENT_STATUS.ACTIVE || e.status === EVENT_STATUS.PUBLISHED
-          ).length,
-          totalRevenue,
-          totalTicketsSold,
-        });
-      } catch (err) {
-        console.error('Error loading dashboard:', err);
-      } finally {
-        setLoading(false);
-      }
+      setEventStats(statsMap);
+      setStats({
+        totalEvents: published.length,
+        activeEvents: published.filter(
+          e => e.status === EVENT_STATUS.ACTIVE || e.status === EVENT_STATUS.PUBLISHED
+        ).length,
+        totalRevenue,
+        totalTicketsSold,
+      });
+      setStatsLoading(false);
     };
 
-    loadDashboard();
-  }, [getUserId, router, fetchEvents, allEvents, getCheckInDashboard]);
+    run();
+  }, [eventsLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const getStatusColor = (status: string) => {
-    return STATUS_COLORS[status as keyof typeof STATUS_COLORS] || STATUS_COLORS.draft;
-  };
-
-  const getStatusLabel = (status: string) => {
-    return STATUS_LABELS[status as keyof typeof STATUS_LABELS] || status;
-  };
-
-  const handleViewEvent = (eventId: number) => {
-    router.push(`${EVENTS_PATH}/${eventId}`);
-  };
-
-  const handleEditEvent = (eventId: number) => {
-    router.push(`/organizer/events/${eventId}/edit`);
-  };
-
-  const handleDeleteEvent = async (eventId: number) => {
+  const handleViewEvent   = (id: number) => router.push(`${EVENTS_PATH}/${id}`);
+  const handleEditEvent   = (id: number) => router.push(`/organizer/events/${id}/edit`);
+  const handleDeleteEvent = async (id: number) => {
     if (!confirm('Tem certeza que deseja excluir este evento?')) return;
     try {
-      await eventsService.deleteEvent(eventId);
-      setOrganizerEvents(prev => prev.filter(e => e.id !== eventId));
+      await eventsService.deleteEvent(id);
+      setOrganizerEvents(prev => prev.filter(e => e.id !== id));
     } catch {
       alert('Erro ao excluir evento');
     }
   };
 
-  if (loading || eventsLoading) {
+  const getStatusColor = (status: string) =>
+    STATUS_COLORS[status as keyof typeof STATUS_COLORS] || STATUS_COLORS.draft;
+  const getStatusLabel = (status: string) =>
+    STATUS_LABELS[status as keyof typeof STATUS_LABELS] || status;
+
+  const conversionRate = stats.totalEvents > 0
+    ? ((stats.activeEvents / stats.totalEvents) * 100).toFixed(1)
+    : '0';
+
+  if (eventsLoading || statsLoading) {
     return (
       <DashboardLayout userRole="organizer">
-        <div className="container mx-auto flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <p className="text-medium-gray text-lg">Carregando dashboard...</p>
+        <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              width: 40, height: 40, margin: '0 auto 16px',
+              border: '3px solid #00C2A8', borderTopColor: 'transparent',
+              borderRadius: '50%', animation: 'spin 0.8s linear infinite',
+            }} />
+            <p style={{ color: '#64748b', fontSize: '0.95rem' }}>Carregando dashboard...</p>
           </div>
         </div>
       </DashboardLayout>
     );
   }
 
-  const conversionRate = stats.totalEvents > 0 
-    ? ((stats.activeEvents / stats.totalEvents) * 100).toFixed(1)
-    : '0';
+  const PLATFORM_FEE = 0.07;
+  const netRevenue = stats.totalRevenue * (1 - PLATFORM_FEE);
+
+  const STAT_CARDS = [
+    {
+      label: 'Receita Bruta',
+      value: formatPrice(stats.totalRevenue),
+      sub: 'total arrecadado',
+      icon: <FaDollarSign style={{ color: '#16a34a', fontSize: '1.25rem' }} />,
+      iconBg: '#dcfce7',
+    },
+    {
+      label: 'Receita Líquida',
+      value: formatPrice(netRevenue),
+      sub: 'após taxa de 7% da plataforma',
+      icon: <FaDollarSign style={{ color: '#059669', fontSize: '1.25rem' }} />,
+      iconBg: '#bbf7d0',
+    },
+    {
+      label: 'Ingressos Vendidos',
+      value: stats.totalTicketsSold.toLocaleString(),
+      icon: <FaTicketAlt style={{ color: '#00C2A8', fontSize: '1.25rem' }} />,
+      iconBg: '#f0fdfa',
+    },
+    {
+      label: 'Eventos Ativos',
+      value: stats.activeEvents,
+      sub: `de ${stats.totalEvents} total`,
+      icon: <FaCalendarAlt style={{ color: '#3b82f6', fontSize: '1.25rem' }} />,
+      iconBg: '#eff6ff',
+    },
+  ];
 
   return (
     <DashboardLayout userRole="organizer">
-      <div className="container mx-auto">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8">
+      <div style={{ padding: '32px', background: '#f8fafc', minHeight: '100vh' }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 32 }}>
           <div>
-            <h1 className="text-3xl font-bold text-dark-gray mb-2">Dashboard</h1>
-            <p className="text-medium-gray">Gerencie seus eventos e acompanhe o desempenho</p>
+            <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Dashboard</h1>
+            <p style={{ color: '#64748b', marginTop: 4, fontSize: '0.9rem' }}>Gerencie seus eventos e acompanhe o desempenho</p>
           </div>
-          <div className="flex flex-wrap gap-3 mt-4 lg:mt-0">
-            <Button variant="outline" className="border-turquoise text-turquoise hover:bg-turquoise hover:text-white" onClick={() => router.push('/organizer/profile')}>
-              <FaUserCog className="mr-2" />
-              Meu Perfil
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <Button variant="outline" style={{ borderColor: '#00C2A8', color: '#00C2A8' }} onClick={() => router.push('/organizer/profile')}>
+              <FaUserCog style={{ marginRight: 8 }} /> Meu Perfil
             </Button>
-            <Button variant="outline" className="border-dark-blue text-dark-blue hover:bg-dark-blue hover:text-white" onClick={() => router.push('/organizer/checkin')}>
-              <FaQrcode className="mr-2" />
-              Portaria / Check-in
+            <Button variant="outline" style={{ borderColor: '#1e3a5f', color: '#1e3a5f' }} onClick={() => router.push('/organizer/checkin')}>
+              <FaQrcode style={{ marginRight: 8 }} /> Portaria / Check-in
             </Button>
-            <Button className="bg-turquoise hover:bg-turquoise/90 text-white" onClick={() => router.push('/organizer/events/new')}>
-              <FaPlus className="mr-2" />
-              Novo Evento
+            <Button style={{ background: '#00C2A8', color: '#fff' }} onClick={() => router.push('/organizer/events/new')}>
+              <FaPlus style={{ marginRight: 8 }} /> Novo Evento
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="border-0 shadow-md">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
+        {/* Stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 28 }}>
+          {STAT_CARDS.map((s) => (
+            <div key={s.label} style={cardStyle}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
-                  <p className="text-sm font-medium text-medium-gray">Receita Total</p>
-                  <p className="text-2xl font-bold text-dark-gray">{formatPrice(stats.totalRevenue)}</p>
+                  <p style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 500, marginBottom: 6 }}>{s.label}</p>
+                  <p style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>{s.value}</p>
+                  {s.sub && <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: 4 }}>{s.sub}</p>}
                 </div>
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                  <FaDollarSign className="w-6 h-6 text-green-600" />
+                <div style={{ width: 44, height: 44, borderRadius: '50%', background: s.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {s.icon}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-md">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-medium-gray">Ingressos Vendidos</p>
-                  <p className="text-2xl font-bold text-dark-gray">{stats.totalTicketsSold.toLocaleString()}</p>
-                </div>
-                <div className="w-12 h-12 bg-turquoise/10 rounded-full flex items-center justify-center">
-                  <FaTicketAlt className="w-6 h-6 text-turquoise" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-md">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-medium-gray">Eventos Ativos</p>
-                  <p className="text-2xl font-bold text-dark-gray">{stats.activeEvents}</p>
-                  <p className="text-sm text-medium-gray">de {stats.totalEvents} total</p>
-                </div>
-                <div className="w-12 h-12 bg-light-green/20 rounded-full flex items-center justify-center">
-                  <FaCalendarAlt className="w-6 h-6 text-dark-blue" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-md">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-medium-gray">Taxa de Conversão</p>
-                  <p className="text-2xl font-bold text-dark-gray">{conversionRate}%</p>
-                </div>
-                <div className="w-12 h-12 bg-coral/10 rounded-full flex items-center justify-center">
-                  <FaChartLine className="w-6 h-6 text-coral" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="border-0 shadow-md">
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle>Meus Eventos</CardTitle>
             </div>
-          </CardHeader>
-          <CardContent>
-            {organizerEvents.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-medium-gray mb-4">Nenhum evento encontrado</p>
-                <Button className="bg-turquoise hover:bg-turquoise/90 text-white" onClick={() => router.push('/organizer/events/new')}>
-                  <FaPlus className="mr-2" />
-                  Criar Primeiro Evento
-                </Button>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-3 px-4 font-semibold text-dark-gray">Evento</th>
-                      <th className="text-left py-3 px-4 font-semibold text-dark-gray">Data</th>
-                      <th className="text-left py-3 px-4 font-semibold text-dark-gray">Status</th>
-                      <th className="text-left py-3 px-4 font-semibold text-dark-gray">Ingressos</th>
-                      <th className="text-left py-3 px-4 font-semibold text-dark-gray">Receita</th>
-                      <th className="text-left py-3 px-4 font-semibold text-dark-gray">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {organizerEvents.map((event) => {
-                      const eventStat = eventStats[event.id];
-                      const ticketsSold = eventStat?.totalTickets || 0;
-                      const revenue = eventStat?.revenue || 0;
-
-                      return (
-                        <tr key={event.id} className="border-b hover:bg-light-gray/20">
-                          <td className="py-4 px-4">
-                            <div>
-                              <p className="font-medium text-dark-gray">{event.title}</p>
-                              <p className="text-sm text-medium-gray capitalize">{event.category}</p>
-                            </div>
-                          </td>
-                          <td className="py-4 px-4 text-medium-gray">
-                            {formatDate(event.eventDate)}
-                          </td>
-                          <td className="py-4 px-4">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(event.status)}`}>
-                              {getStatusLabel(event.status)}
-                            </span>
-                          </td>
-                          <td className="py-4 px-4">
-                            <div>
-                              <p className="font-medium text-dark-gray">{ticketsSold.toLocaleString()}</p>
-                              <p className="text-sm text-medium-gray">ingressos vendidos</p>
-                            </div>
-                          </td>
-                          <td className="py-4 px-4 font-medium text-dark-gray">
-                            {formatPrice(revenue)}
-                          </td>
-                          <td className="py-4 px-4">
-                            <div className="flex space-x-2">
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="p-2"
-                                onClick={() => handleViewEvent(event.id)}
-                              >
-                                <FaEye className="w-4 h-4" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="p-2"
-                                onClick={() => handleEditEvent(event.id)}
-                              >
-                                <FaEdit className="w-4 h-4" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="p-2 text-coral hover:text-coral"
-                                onClick={() => handleDeleteEvent(event.id)}
-                              >
-                                <FaTrash className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="border-0 shadow-md hover:shadow-lg transition-shadow cursor-pointer">
-            <CardContent className="p-6 text-center">
-              <div className="w-16 h-16 bg-turquoise/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FaPlus className="w-8 h-8 text-turquoise" />
-              </div>
-              <h3 className="font-semibold text-dark-gray mb-2">Criar Novo Evento</h3>
-              <p className="text-sm text-medium-gray mb-4">
-                Comece do zero ou use um dos nossos templates
-              </p>
-              <Button className="w-full bg-turquoise hover:bg-turquoise/90 text-white" onClick={() => router.push('/organizer/events/new')}>
-                Criar Evento
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-md hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push('/organizer/checkin')}>
-            <CardContent className="p-6 text-center">
-              <div className="w-16 h-16 bg-light-green/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FaQrcode className="w-8 h-8 text-dark-blue" />
-              </div>
-              <h3 className="font-semibold text-dark-gray mb-2">Check-in / Portaria</h3>
-              <p className="text-sm text-medium-gray mb-4">
-                Valide ingressos via QR code na entrada do evento
-              </p>
-              <Button variant="outline" className="w-full border-turquoise text-turquoise hover:bg-turquoise hover:text-white" onClick={() => router.push('/organizer/checkin')}>
-                Abrir Portaria
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-md hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push('/organizer/profile')}>
-            <CardContent className="p-6 text-center">
-              <div className="w-16 h-16 bg-coral/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FaChartLine className="w-8 h-8 text-coral" />
-              </div>
-              <h3 className="font-semibold text-dark-gray mb-2">Perfil & Dados Bancários</h3>
-              <p className="text-sm text-medium-gray mb-4">
-                Atualize seu perfil e dados para receber pagamentos
-              </p>
-              <Button variant="outline" className="w-full border-coral text-coral hover:bg-coral hover:text-white" onClick={() => router.push('/organizer/profile')}>
-                Editar Perfil
-              </Button>
-            </CardContent>
-          </Card>
+          ))}
         </div>
+
+        {/* Events table */}
+        <div style={{ ...cardStyle, padding: 0, marginBottom: 28, overflow: 'hidden' }}>
+          <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9' }}>
+            <h2 style={{ fontWeight: 700, color: '#0f172a', fontSize: '1.05rem', margin: 0 }}>Meus Eventos</h2>
+          </div>
+
+          {organizerEvents.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+              <p style={{ color: '#94a3b8', marginBottom: 16 }}>Nenhum evento encontrado</p>
+              <Button style={{ background: '#00C2A8', color: '#fff' }} onClick={() => router.push('/organizer/events/new')}>
+                <FaPlus style={{ marginRight: 8 }} /> Criar Primeiro Evento
+              </Button>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    {['Evento', 'Data', 'Status', 'Ingressos', 'Receita', 'Ações'].map(h => (
+                      <th key={h} style={{ textAlign: 'left', padding: '12px 16px', fontSize: '0.8rem', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {organizerEvents.map((event) => {
+                    const es = eventStats[event.id];
+                    return (
+                      <tr
+                        key={event.id}
+                        style={{ borderBottom: '1px solid #f8fafc' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <td style={{ padding: '14px 16px' }}>
+                          <p style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.875rem', margin: 0 }}>{event.title}</p>
+                          <p style={{ color: '#94a3b8', fontSize: '0.78rem', textTransform: 'capitalize', margin: 0 }}>{event.category}</p>
+                        </td>
+                        <td style={{ padding: '14px 16px', color: '#64748b', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
+                          {formatDate(event.eventDate)}
+                        </td>
+                        <td style={{ padding: '14px 16px' }}>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(event.status)}`}>
+                            {getStatusLabel(event.status)}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px 16px' }}>
+                          <p style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.875rem', margin: 0 }}>{(es?.totalTickets ?? 0).toLocaleString()}</p>
+                          <p style={{ color: '#94a3b8', fontSize: '0.78rem', margin: 0 }}>vendidos</p>
+                        </td>
+                        <td style={{ padding: '14px 16px', fontWeight: 600, color: '#0f172a', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
+                          {formatPrice(es?.revenue ?? 0)}
+                        </td>
+                        <td style={{ padding: '14px 16px' }}>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <Button variant="ghost" size="sm" style={{ padding: '6px 8px' }} onClick={() => handleViewEvent(event.id)}>
+                              <FaEye style={{ color: '#64748b' }} />
+                            </Button>
+                            <Button variant="ghost" size="sm" style={{ padding: '6px 8px' }} onClick={() => handleEditEvent(event.id)}>
+                              <FaEdit style={{ color: '#64748b' }} />
+                            </Button>
+                            <Button variant="ghost" size="sm" style={{ padding: '6px 8px' }} onClick={() => handleDeleteEvent(event.id)}>
+                              <FaTrash style={{ color: '#ef4444' }} />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Quick actions */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20 }}>
+          {[
+            {
+              icon: <FaPlus style={{ fontSize: '1.75rem', color: '#00C2A8' }} />,
+              iconBg: '#f0fdfa',
+              title: 'Criar Novo Evento',
+              desc: 'Comece do zero ou use um dos nossos templates',
+              btn: { label: 'Criar Evento', style: { background: '#00C2A8', color: '#fff', width: '100%' } as React.CSSProperties, onClick: () => router.push('/organizer/events/new') },
+            },
+            {
+              icon: <FaQrcode style={{ fontSize: '1.75rem', color: '#1e3a5f' }} />,
+              iconBg: '#eff6ff',
+              title: 'Check-in / Portaria',
+              desc: 'Valide ingressos via QR code na entrada do evento',
+              btn: { label: 'Abrir Portaria', variant: 'outline' as const, style: { borderColor: '#00C2A8', color: '#00C2A8', width: '100%' } as React.CSSProperties, onClick: () => router.push('/organizer/checkin') },
+            },
+            {
+              icon: <FaChartLine style={{ fontSize: '1.75rem', color: '#f59e0b' }} />,
+              iconBg: '#fefce8',
+              title: 'Perfil & Dados Bancários',
+              desc: 'Atualize seu perfil e dados para receber pagamentos',
+              btn: { label: 'Editar Perfil', variant: 'outline' as const, style: { borderColor: '#f59e0b', color: '#f59e0b', width: '100%' } as React.CSSProperties, onClick: () => router.push('/organizer/profile') },
+            },
+          ].map((item) => (
+            <div key={item.title} style={{ ...cardStyle, textAlign: 'center' }}>
+              <div style={{ width: 60, height: 60, borderRadius: '50%', background: item.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                {item.icon}
+              </div>
+              <h3 style={{ fontWeight: 700, color: '#0f172a', marginBottom: 8, fontSize: '0.95rem' }}>{item.title}</h3>
+              <p style={{ color: '#64748b', fontSize: '0.82rem', marginBottom: 16, lineHeight: 1.5 }}>{item.desc}</p>
+              <Button variant={item.btn.variant} style={item.btn.style} onClick={item.btn.onClick}>
+                {item.btn.label}
+              </Button>
+            </div>
+          ))}
+        </div>
+
       </div>
     </DashboardLayout>
   );

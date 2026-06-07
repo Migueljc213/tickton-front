@@ -21,7 +21,9 @@ export const useTickets = (eventId?: number) => {
     setError(null);
     try {
       const response = await ticketsService.getTicketsByEventId(eventId);
-      setTickets(response.tickets);
+      // Backend returns Ticket[] directly; service type says { tickets: Ticket[] } — handle both
+      const list = Array.isArray(response) ? response : (response.tickets ?? []);
+      setTickets(list);
     } catch (err) {
       setError(extractErrorMessage(err) || DEFAULT_ERROR_MESSAGES.FETCH);
     } finally {

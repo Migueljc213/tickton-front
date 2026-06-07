@@ -10,15 +10,11 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children, userRole = 'participant' }: DashboardLayoutProps) {
   return (
-    <div className="min-h-screen bg-light-gray/30">
-      <div className="flex">
-        <Sidebar userRole={userRole} />
-        <main className="flex-1 lg:ml-0">
-          <div className="p-8">
-            {children}
-          </div>
-        </main>
-      </div>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex' }}>
+      <Sidebar userRole={userRole} />
+      <main style={{ flex: 1, background: '#f8fafc', overflowX: 'hidden' }}>
+        {children}
+      </main>
     </div>
   );
 }

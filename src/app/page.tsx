@@ -1,3 +1,6 @@
+'use client';
+
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import {
@@ -5,17 +8,50 @@ import {
   FaSearch,
   FaCalendarAlt,
   FaTicketAlt,
-  FaUsers,
-  FaShieldAlt,
   FaChartLine,
   FaArrowRight,
   FaCheckCircle,
   FaMobile,
   FaBolt,
+  FaMapMarkerAlt,
+  FaSpinner,
 } from "react-icons/fa"
 import Carousel from "@/components/ui/carousel"
 import EventCard from "@/components/events/EventCard"
-import { getFeaturedEvents, getNearbyEvents } from "@/data/mockEvents"
+import type { Event as ApiEvent } from "@/types/api"
+import type { Event as CardEvent } from "@/types/event"
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+
+type GeoStatus = 'idle' | 'requesting' | 'found' | 'denied' | 'error';
+
+function adaptApiEvent(e: ApiEvent): CardEvent {
+  return {
+    id: String(e.id),
+    title: e.title,
+    description: e.description ?? '',
+    date: e.eventDate,
+    time: new Date(e.eventDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    location: {
+      name: e.venueName || e.city || 'Local a definir',
+      address: e.address ?? '',
+      city: e.city ?? '',
+      state: e.state ?? '',
+      zipCode: e.zipcode ?? '',
+      capacity: e.maxAttendees ?? 0,
+    },
+    organizer: { id: String(e.organizerId), name: 'Organizador', email: '', phone: '' },
+    category: (e.category as CardEvent['category']) ?? 'other',
+    type: 'paid',
+    featured: !!(e.isPublished && e.isPublic),
+    status: 'active',
+    image: e.bannerUrl ?? '',
+    tickets: [],
+    tags: [],
+    createdAt: e.createdAt ?? '',
+    updatedAt: e.updatedAt ?? '',
+  };
+}
 
 const CATEGORIES = [
   { icon: "🎵", label: "Música",       slug: "music",      color: "from-violet-100 to-purple-50 border-violet-200 text-violet-700 hover:border-violet-400" },
@@ -63,7 +99,79 @@ const ORGANIZER_FEATURES = [
   { icon: "💳", title: "Pagamentos seguros",         desc: "PIX, cartão e parcelamento em até 12x. Repasse automático em D+2." },
 ]
 
+async function reverseGeocode(lat: number, lon: number): Promise<{ city: string; state: string } | null> {
+  try {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`,
+      { headers: { 'Accept-Language': 'pt-BR' } },
+    );
+    if (!r.ok) return null;
+    const data = await r.json();
+    const addr = data.address ?? {};
+    const city  = addr.city ?? addr.town ?? addr.village ?? addr.county ?? '';
+    const state = addr['ISO3166-2-lvl4']?.split('-')[1] ?? addr.state_code ?? '';
+    return city ? { city, state } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchEventsByLocation(city: string, state: string): Promise<CardEvent[]> {
+  const params = new URLSearchParams({ isPublished: 'true' });
+  if (city)  params.set('city',  city);
+  if (state) params.set('state', state);
+  const r = await fetch(`${API_URL}/events?${params}`);
+  if (!r.ok) return [];
+  const data = await r.json();
+  const list: ApiEvent[] = Array.isArray(data) ? data : (data.events ?? []);
+  return list.map(adaptApiEvent);
+}
+
 export default function Home() {
+  const [cardEvents, setCardEvents]       = useState<CardEvent[]>([]);
+  const [nearbyEvents, setNearbyEvents]   = useState<CardEvent[]>([]);
+  const [geoStatus, setGeoStatus]         = useState<GeoStatus>('idle');
+  const [userCity, setUserCity]           = useState('');
+  const [userState, setUserState]         = useState('');
+
+  /* Carrega todos os eventos uma vez */
+  useEffect(() => {
+    fetch(`${API_URL}/events`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return;
+        const list: ApiEvent[] = Array.isArray(data) ? data : (data.events ?? []);
+        setCardEvents(list.map(adaptApiEvent));
+      })
+      .catch(() => null);
+  }, []);
+
+  /* Solicita geolocalização e busca eventos próximos */
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setGeoStatus('error');
+      return;
+    }
+    setGeoStatus('requesting');
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const geo = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+        if (!geo) { setGeoStatus('error'); return; }
+        setUserCity(geo.city);
+        setUserState(geo.state);
+        const nearby = await fetchEventsByLocation(geo.city, geo.state);
+        setNearbyEvents(nearby);
+        setGeoStatus('found');
+      },
+      () => setGeoStatus('denied'),
+      { timeout: 8000 },
+    );
+  }, []);
+
+  const featuredEvents  = cardEvents.filter(e => e.featured).slice(0, 8);
+  const recentEvents    = cardEvents.slice(0, 8);
+  const displayedNearby = geoStatus === 'found' ? nearbyEvents.slice(0, 8) : recentEvents;
+
   return (
     <div className="min-h-screen overflow-x-hidden">
 
@@ -229,9 +337,10 @@ export default function Home() {
             title="Eventos em Destaque"
             subtitle="Os eventos mais populares e bem avaliados da plataforma"
           >
-            {getFeaturedEvents().map((event) => (
-              <EventCard key={event.id} event={event} />
-            ))}
+            {featuredEvents.length > 0
+              ? featuredEvents.map((event) => <EventCard key={event.id} event={event} />)
+              : recentEvents.map((event) => <EventCard key={event.id} event={event} />)
+            }
           </Carousel>
         </div>
       </section>
@@ -274,16 +383,43 @@ export default function Home() {
         <div className="container mx-auto px-4">
           <Carousel
             title="Próximos de Você"
-            subtitle="Descubra eventos incríveis na sua região"
+            subtitle={
+              geoStatus === 'requesting'
+                ? 'Localizando sua cidade...'
+                : geoStatus === 'found'
+                  ? `Eventos em ${userCity}${userState ? `, ${userState}` : ''}`
+                  : geoStatus === 'denied'
+                    ? 'Permita o acesso à localização para ver eventos próximos'
+                    : 'Descubra eventos incríveis na sua região'
+            }
+            headerRight={
+              geoStatus === 'requesting' ? (
+                <span className="flex items-center gap-2 text-sm text-gray-400">
+                  <FaSpinner className="animate-spin text-turquoise" />
+                  Detectando localização...
+                </span>
+              ) : geoStatus === 'found' ? (
+                <span className="flex items-center gap-2 text-sm text-turquoise font-medium">
+                  <FaMapMarkerAlt />
+                  {userCity}{userState ? `, ${userState}` : ''}
+                </span>
+              ) : null
+            }
           >
-            {getNearbyEvents().map((event) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                showDistance
-                distance={Math.floor(Math.random() * 20) + 1}
-              />
-            ))}
+            {geoStatus === 'requesting' ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="min-w-[280px] h-[360px] bg-white rounded-2xl border border-gray-100 animate-pulse" />
+              ))
+            ) : displayedNearby.length > 0 ? (
+              displayedNearby.map((event) => (
+                <EventCard key={event.id} event={event} />
+              ))
+            ) : (
+              <div className="w-full py-10 text-center text-gray-400 text-sm">
+                Nenhum evento encontrado na sua região.{' '}
+                <Link href="/events" className="text-turquoise underline">Ver todos os eventos</Link>
+              </div>
+            )}
           </Carousel>
         </div>
       </section>

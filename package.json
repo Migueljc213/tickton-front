@@ -3,12 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev --turbopack -p ${PORT:-3002}",
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@zxing/browser": "^0.2.0",
+    "@zxing/library": "^0.23.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.544.0",
     "next": "^16.2.7",

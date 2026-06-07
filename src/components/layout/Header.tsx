@@ -1,18 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { storage } from '@/lib/utils/storage';
+import { authService } from '@/lib/api/services/auth.service';
 import {
   FaTicketAlt,
   FaSearch,
-  FaUser,
-  FaBell,
   FaBars,
   FaTimes,
   FaArrowRight,
+  FaUser,
+  FaCog,
+  FaSignOutAlt,
+  FaChevronDown,
+  FaChartLine,
+  FaShieldAlt,
 } from 'react-icons/fa';
+import NotificationDropdown from '@/components/notifications/NotificationDropdown';
+import { usersService } from '@/lib/api/services/users.service';
 
 const NAV_LINKS = [
   { href: '/events',    label: 'Eventos' },
@@ -21,25 +29,85 @@ const NAV_LINKS = [
 ];
 
 export default function Header() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen]     = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  const pathname = usePathname();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [scrolled, setScrolled]         = useState(false);
+  const [userName, setUserName]         = useState<string | null>(null);
+  const [userRole, setUserRole]         = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn]     = useState(false);
+  const pathname  = usePathname();
+  const router    = useRouter();
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Detectar scroll para mudar estilo do header
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 16);
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Fechar menu mobile ao mudar de página
   useEffect(() => {
     setIsMenuOpen(false);
     setIsSearchOpen(false);
+    setIsDropdownOpen(false);
   }, [pathname]);
 
+  // Lê auth do localStorage; se nome ausente busca da API
+  useEffect(() => {
+    const token = storage.getToken();
+    setIsLoggedIn(!!token);
+    setUserRole(storage.getUserRole());
+
+    const storedName = storage.getUserName();
+    if (storedName) {
+      setUserName(storedName);
+    } else if (token) {
+      usersService.getMe().then((user) => {
+        storage.setUserName(user.name);
+        storage.setUserRole(user.role);
+        setUserName(user.name);
+        setUserRole(user.role);
+      }).catch(() => {});
+    } else {
+      setUserName(null);
+    }
+  }, [pathname]);
+
+  // Fecha dropdown ao clicar fora
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const handleLogout = () => {
+    authService.logout();
+    setIsLoggedIn(false);
+    setUserName(null);
+    setIsDropdownOpen(false);
+    router.push('/');
+  };
+
   const isHeroPage = pathname === '/';
+
+  const navTextClass = (active: boolean) => {
+    if (active) return 'text-turquoise';
+    return scrolled || !isHeroPage
+      ? 'text-gray-600 hover:text-turquoise'
+      : 'text-white hover:text-white/80';
+  };
+
+  const iconClass = scrolled || !isHeroPage
+    ? 'text-gray-500 hover:text-turquoise'
+    : 'text-white hover:text-white/80 hover:bg-white/10';
+
+  const initials = userName
+    ? userName.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+    : '?';
 
   return (
     <>
@@ -53,7 +121,7 @@ export default function Header() {
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
 
-            {/* ---- Logo ---- */}
+            {/* Logo */}
             <Link href="/" className="flex items-center gap-2.5 group">
               <div
                 className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-all"
@@ -61,28 +129,20 @@ export default function Header() {
               >
                 <FaTicketAlt className="text-white text-sm" />
               </div>
-              <span
-                className={`text-xl font-black tracking-tight transition-colors ${
-                  scrolled || !isHeroPage ? 'text-gray-900' : 'text-white'
-                }`}
-              >
+              <span className={`text-xl font-black tracking-tight transition-colors ${
+                scrolled || !isHeroPage ? 'text-gray-900' : 'text-white'
+              }`}>
                 Ticketon
               </span>
             </Link>
 
-            {/* ---- Nav Desktop ---- */}
+            {/* Nav Desktop */}
             <nav className="hidden md:flex items-center gap-8">
               {NAV_LINKS.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`text-sm font-medium transition-colors relative py-1 ${
-                    pathname === link.href
-                      ? 'text-turquoise'
-                      : scrolled || !isHeroPage
-                        ? 'text-gray-600 hover:text-turquoise'
-                        : 'text-white/80 hover:text-white'
-                  }`}
+                  className={`text-sm font-medium transition-colors relative py-1 ${navTextClass(pathname === link.href)}`}
                 >
                   {link.label}
                   {pathname === link.href && (
@@ -92,59 +152,124 @@ export default function Header() {
               ))}
             </nav>
 
-            {/* ---- Actions Desktop ---- */}
+            {/* Actions Desktop */}
             <div className="hidden md:flex items-center gap-2">
-              {/* Search */}
+              {/* Busca */}
               <button
                 onClick={() => setIsSearchOpen(true)}
-                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:bg-gray-100 ${
-                  scrolled || !isHeroPage ? 'text-gray-500 hover:text-turquoise' : 'text-white/70 hover:text-white hover:bg-white/10'
-                }`}
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:bg-gray-100 ${iconClass}`}
               >
                 <FaSearch className="w-4 h-4" />
               </button>
 
-              {/* Notifications */}
-              <button
-                className={`w-9 h-9 rounded-lg flex items-center justify-center relative transition-all hover:bg-gray-100 ${
-                  scrolled || !isHeroPage ? 'text-gray-500 hover:text-turquoise' : 'text-white/70 hover:text-white hover:bg-white/10'
-                }`}
-              >
-                <FaBell className="w-4 h-4" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-coral rounded-full border-2 border-white" />
-              </button>
+              {/* Notificações */}
+              <NotificationDropdown lightBg={scrolled || !isHeroPage} />
 
-              {/* Divisor */}
               <div className={`w-px h-5 mx-1 ${scrolled || !isHeroPage ? 'bg-gray-200' : 'bg-white/20'}`} />
 
-              {/* Entrar */}
-              <Link href="/login">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={`font-medium text-sm px-4 rounded-lg transition-all ${
-                    scrolled || !isHeroPage
-                      ? 'text-gray-700 hover:text-turquoise hover:bg-turquoise/5'
-                      : 'text-white/80 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  <FaUser className="mr-1.5 text-xs" />
-                  Entrar
-                </Button>
-              </Link>
+              {isLoggedIn ? (
+                <>
+                {/* Botão CTA por role */}
+                {userRole === 'participant' && (
+                  <Link href="/tickets">
+                    <Button size="sm" className="bg-turquoise hover:bg-turquoise-600 text-white font-semibold px-4 rounded-xl text-sm">
+                      <FaTicketAlt className="mr-1.5 text-xs" />
+                      Meus Ingressos
+                    </Button>
+                  </Link>
+                )}
+                {userRole === 'organizer' && (
+                  <Link href="/organizer/dashboard">
+                    <Button size="sm" className="bg-turquoise hover:bg-turquoise-600 text-white font-semibold px-4 rounded-xl text-sm">
+                      <FaChartLine className="mr-1.5 text-xs" />
+                      Meu Dashboard
+                    </Button>
+                  </Link>
+                )}
+                {userRole === 'admin' && (
+                  <Link href="/admin/dashboard">
+                    <Button size="sm" className="bg-turquoise hover:bg-turquoise-600 text-white font-semibold px-4 rounded-xl text-sm">
+                      <FaShieldAlt className="mr-1.5 text-xs" />
+                      Admin
+                    </Button>
+                  </Link>
+                )}
+                {/* Dropdown do usuário logado */}
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all ${
+                      scrolled || !isHeroPage
+                        ? 'hover:bg-gray-100'
+                        : 'hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="w-7 h-7 rounded-full bg-turquoise flex items-center justify-center text-white text-xs font-bold">
+                      {initials}
+                    </div>
+                    <span className={`text-sm font-medium max-w-[120px] truncate ${
+                      scrolled || !isHeroPage ? 'text-gray-700' : 'text-white'
+                    }`}>
+                      {userName?.split(' ')[0]}
+                    </span>
+                    <FaChevronDown className={`w-3 h-3 transition-transform ${
+                      isDropdownOpen ? 'rotate-180' : ''
+                    } ${scrolled || !isHeroPage ? 'text-gray-500' : 'text-white/80'}`} />
+                  </button>
 
-              {/* Criar Evento - CTA principal */}
-              <Link href="/organizer">
-                <Button
-                  size="sm"
-                  className="bg-turquoise hover:bg-turquoise-600 text-white font-semibold px-5 rounded-xl shadow-sm hover:shadow-md hover:shadow-turquoise/20 transition-all text-sm"
-                >
-                  Criar Evento
-                </Button>
-              </Link>
+                  {isDropdownOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50">
+                      <div className="px-4 py-2 border-b border-gray-100 mb-1">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{userName}</p>
+                      </div>
+                      <Link
+                        href="/settings"
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-turquoise transition-colors"
+                      >
+                        <FaCog className="w-4 h-4" />
+                        Configurações
+                      </Link>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <FaSignOutAlt className="w-4 h-4" />
+                        Sair
+                      </button>
+                    </div>
+                  )}
+                </div>
+                </>
+              ) : (
+                <>
+                  <Link href="/login">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={`font-medium text-sm px-4 rounded-lg transition-all ${
+                        scrolled || !isHeroPage
+                          ? 'text-gray-700 hover:text-turquoise hover:bg-turquoise/5'
+                          : 'text-white hover:text-white/80 hover:bg-white/10'
+                      }`}
+                    >
+                      <FaUser className="mr-1.5 text-xs" />
+                      Entrar
+                    </Button>
+                  </Link>
+
+                  <Link href="/organizer">
+                    <Button
+                      size="sm"
+                      className="bg-turquoise hover:bg-turquoise-600 text-white font-semibold px-5 rounded-xl shadow-sm hover:shadow-md hover:shadow-turquoise/20 transition-all text-sm"
+                    >
+                      Criar Evento
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
 
-            {/* ---- Botão Mobile ---- */}
+            {/* Botão Mobile */}
             <button
               className={`md:hidden w-10 h-10 flex items-center justify-center rounded-xl transition-all ${
                 scrolled || !isHeroPage
@@ -159,7 +284,7 @@ export default function Header() {
           </div>
         </div>
 
-        {/* ---- Menu Mobile ---- */}
+        {/* Menu Mobile */}
         <div
           className={`md:hidden overflow-hidden transition-all duration-300 bg-white border-t border-gray-100 ${
             isMenuOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
@@ -182,23 +307,50 @@ export default function Header() {
             ))}
 
             <div className="pt-3 border-t border-gray-100 flex flex-col gap-2">
-              <Link href="/login">
-                <Button variant="outline" className="w-full border-gray-200 text-gray-700 hover:border-turquoise hover:text-turquoise rounded-xl font-medium">
-                  <FaUser className="mr-2 text-xs" />
-                  Entrar na conta
-                </Button>
-              </Link>
-              <Link href="/organizer">
-                <Button className="w-full bg-turquoise hover:bg-turquoise-600 text-white rounded-xl font-semibold">
-                  Criar Evento
-                </Button>
-              </Link>
+              {isLoggedIn ? (
+                <>
+                  <div className="flex items-center gap-3 px-4 py-2">
+                    <div className="w-8 h-8 rounded-full bg-turquoise flex items-center justify-center text-white text-sm font-bold">
+                      {initials}
+                    </div>
+                    <span className="font-medium text-gray-800">{userName}</span>
+                  </div>
+                  <Link href="/settings">
+                    <Button variant="outline" className="w-full border-gray-200 text-gray-700 rounded-xl font-medium">
+                      <FaCog className="mr-2 text-xs" />
+                      Configurações
+                    </Button>
+                  </Link>
+                  <Button
+                    onClick={handleLogout}
+                    className="w-full bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-medium border-0"
+                    variant="outline"
+                  >
+                    <FaSignOutAlt className="mr-2 text-xs" />
+                    Sair
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Link href="/login">
+                    <Button variant="outline" className="w-full border-gray-200 text-gray-700 hover:border-turquoise hover:text-turquoise rounded-xl font-medium">
+                      <FaUser className="mr-2 text-xs" />
+                      Entrar na conta
+                    </Button>
+                  </Link>
+                  <Link href="/organizer">
+                    <Button className="w-full bg-turquoise hover:bg-turquoise-600 text-white rounded-xl font-semibold">
+                      Criar Evento
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
       </header>
 
-      {/* ---- Overlay de busca ---- */}
+      {/* Overlay de busca */}
       {isSearchOpen && (
         <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-start justify-center pt-24 px-4 animate-fade-in"

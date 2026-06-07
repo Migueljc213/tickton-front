@@ -8,7 +8,7 @@ import { FaEnvelope, FaLock, FaTicketAlt, FaEye, FaEyeSlash, FaArrowRight } from
 import { useAuth } from '@/hooks';
 import { isEmailValid, isFieldEmpty } from '@/lib/utils/validation';
 
-const LOGIN_REDIRECT = '/organizer/dashboard';
+const LOGIN_REDIRECT = '/events';
 const REGISTER_PATH  = '/register';
 
 /* Credenciais de demonstração para acesso rápido */

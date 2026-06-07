@@ -31,5 +31,6 @@ export const API_ENDPOINTS = {
   },
   users: {
     base: '/users',
+    me: '/users/me',
   },
 } as const;
