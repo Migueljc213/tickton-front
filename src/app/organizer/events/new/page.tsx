@@ -39,7 +39,6 @@ const EMPTY_LOTE: Lote = {
   saleEndDate: '',
 };
 
-// Converte string de centavos para exibição BRL: "15000" → "R$ 150,00"
 const displayBRL = (cents: string): string => {
   if (!cents) return '';
   const num = parseInt(cents, 10);
@@ -91,7 +90,6 @@ export default function NewEventPage() {
   const [cepLoading, setCepLoading] = useState(false);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [uploadingImages, setUploadingImages] = useState(false);
 
   useEffect(() => {
     const token = getToken();
@@ -138,7 +136,6 @@ export default function NewEventPage() {
   const setLoteField = (idx: number, k: keyof Lote, v: string) =>
     setLotes((prev) => prev.map((l, i) => (i === idx ? { ...l, [k]: v } : l)));
 
-  // Trata o input de preço: extrai apenas dígitos e armazena como centavos ("15000" = R$ 150,00)
   const handlePriceInput = (idx: number, val: string) => {
     const digits = val.replace(/\D/g, '');
     setLoteField(idx, 'price', digits);
@@ -181,29 +178,6 @@ export default function NewEventPage() {
   const removeImage = (idx: number) => {
     setImageFiles((prev) => prev.filter((_, i) => i !== idx));
     setImagePreviews((prev) => prev.filter((_, i) => i !== idx));
-  };
-
-  const uploadImages = async (token: string): Promise<string[]> => {
-    if (imageFiles.length === 0) return [];
-    setUploadingImages(true);
-    try {
-      const urls: string[] = [];
-      for (const file of imageFiles) {
-        const fd = new FormData();
-        fd.append('file', file);
-        const res = await fetch(`${API_URL}/upload`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: fd,
-        });
-        if (!res.ok) throw new Error('Erro ao fazer upload da imagem');
-        const data = await res.json();
-        urls.push(data.url);
-      }
-      return urls;
-    } finally {
-      setUploadingImages(false);
-    }
   };
 
   const validateEventFields = (): EventFieldErrors => {
@@ -269,14 +243,6 @@ export default function NewEventPage() {
     }
 
     try {
-      // TODO: S3 não configurado — descomente quando configurar o bucket.
-      // let imageUrls: string[] = [];
-      // try {
-      //   imageUrls = await uploadImages(token);
-      // } catch {
-      //   console.warn('Upload de imagens falhou (S3 não configurado). Criando evento sem banner.');
-      // }
-      // const bannerUrl = imageUrls.length > 0 ? JSON.stringify(imageUrls) : undefined;
       const bannerUrl = undefined;
       const str = (v: string) => v.trim() || undefined;
 
@@ -723,10 +689,10 @@ export default function NewEventPage() {
                   className="flex-1 py-3.5 border border-gray-300 text-gray-700 font-bold rounded-xl hover:border-gray-400 transition-all">
                   Voltar
                 </button>
-                <button onClick={handleSubmit} disabled={loading || uploadingImages}
+                <button onClick={handleSubmit} disabled={loading}
                   className="flex-1 py-3.5 text-white font-bold rounded-xl transition-all hover:opacity-90 disabled:opacity-60"
                   style={{ backgroundColor: '#00C2A8' }}>
-                  {uploadingImages ? 'Enviando imagens...' : loading ? 'Publicando...' : 'Criar Evento'}
+                  {loading ? 'Publicando...' : 'Criar Evento'}
                 </button>
               </div>
             </div>

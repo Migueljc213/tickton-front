@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaSave, FaCheckCircle, FaBuilding, FaUniversity, FaUser } from 'react-icons/fa';
+import { FaSave, FaCheckCircle, FaBuilding, FaUniversity, FaUser, FaCamera, FaSpinner } from 'react-icons/fa';
 import { useAuth } from '@/hooks';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 
@@ -22,6 +22,8 @@ export default function OrganizerProfilePage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [organizerId, setOrganizerId] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [orgForm, setOrgForm] = useState({
     companyName: '',
@@ -110,6 +112,32 @@ export default function OrganizerProfilePage() {
 
   const setOrgField = (k: string, v: string) => setOrgForm((prev) => ({ ...prev, [k]: v }));
   const setBankField = (k: string, v: string) => setBankForm((prev) => ({ ...prev, [k]: v }));
+
+  const handleLogoUpload = async (file: File) => {
+    const token = getToken();
+    if (!token) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${API_URL}/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.message ?? 'Erro ao fazer upload');
+      }
+      const { url } = await res.json();
+      setOrgField('logoUrl', url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro no upload da imagem');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSave = async () => {
     const token = getToken();
@@ -233,10 +261,71 @@ export default function OrganizerProfilePage() {
                   <input type="url" className="input-form" placeholder="https://minhaempresa.com.br"
                     value={orgForm.website} onChange={(e) => setOrgField('website', e.target.value)} />
                 </div>
-                <div>
-                  <label className="label-form">URL do logotipo</label>
-                  <input type="url" className="input-form" placeholder="https://..."
-                    value={orgForm.logoUrl} onChange={(e) => setOrgField('logoUrl', e.target.value)} />
+
+                {/* Logo upload */}
+                <div className="col-span-2">
+                  <label className="label-form">Foto de perfil / Logotipo</label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleLogoUpload(file);
+                      e.target.value = '';
+                    }}
+                  />
+                  <div className="flex items-center gap-5">
+                    {/* Preview */}
+                    <div className="relative flex-shrink-0">
+                      {orgForm.logoUrl ? (
+                        <img
+                          src={orgForm.logoUrl}
+                          alt="Logo"
+                          className="w-24 h-24 rounded-2xl object-cover border-2 border-gray-200 shadow-sm"
+                        />
+                      ) : (
+                        <div
+                          className="w-24 h-24 rounded-2xl flex items-center justify-center text-white text-3xl font-black shadow-sm"
+                          style={{ background: 'linear-gradient(135deg,#003B4A,#00C2A8)' }}
+                        >
+                          {orgForm.companyName.charAt(0).toUpperCase() || '?'}
+                        </div>
+                      )}
+                      {uploading && (
+                        <div className="absolute inset-0 bg-black/50 rounded-2xl flex items-center justify-center">
+                          <FaSpinner className="text-white text-xl animate-spin" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex-1 space-y-3">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-gray-600 text-sm font-semibold hover:border-[#00C2A8] hover:text-[#00C2A8] transition-all w-full justify-center disabled:opacity-50"
+                      >
+                        {uploading ? (
+                          <><FaSpinner className="animate-spin" /> Enviando...</>
+                        ) : (
+                          <><FaCamera /> {orgForm.logoUrl ? 'Trocar imagem' : 'Fazer upload'}</>
+                        )}
+                      </button>
+                      {orgForm.logoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setOrgField('logoUrl', '')}
+                          className="text-xs text-red-400 hover:text-red-600 transition-colors w-full text-center"
+                        >
+                          Remover imagem
+                        </button>
+                      )}
+                      <p className="text-xs text-gray-400 text-center">PNG, JPG ou WEBP · máx. 5 MB</p>
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <label className="label-form">CEP</label>

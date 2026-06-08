@@ -53,13 +53,9 @@ export default function EditEventPage() {
   const [saved, setSaved] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<EditFieldErrors>({});
 
-  // CEP state
   const [cepLoading, setCepLoading] = useState(false);
-
-  // Image upload state
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [uploadingImages, setUploadingImages] = useState(false);
 
   const [form, setForm] = useState({
     title: '',
@@ -180,29 +176,6 @@ export default function EditEventPage() {
     }
   };
 
-  const uploadImages = async (token: string): Promise<string[]> => {
-    if (imageFiles.length === 0) return form.imageUrls;
-    setUploadingImages(true);
-    try {
-      const urls: string[] = [...form.imageUrls];
-      for (const file of imageFiles) {
-        const fd = new FormData();
-        fd.append('file', file);
-        const res = await fetch(`${API_URL}/upload`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: fd,
-        });
-        if (!res.ok) throw new Error('Erro ao fazer upload da imagem');
-        const data = await res.json();
-        urls.push(data.url);
-      }
-      return urls;
-    } finally {
-      setUploadingImages(false);
-    }
-  };
-
   const handleSave = async () => {
     const errs: EditFieldErrors = {};
     if (!form.title.trim()) errs.title = 'Título é obrigatório';
@@ -231,9 +204,6 @@ export default function EditEventPage() {
     setSaving(true);
     setError(null);
     try {
-      // TODO: S3 não configurado — descomente quando configurar o bucket.
-      // const allUrls = await uploadImages(token);
-      // const bannerUrl = allUrls.length > 0 ? JSON.stringify(allUrls) : undefined;
       const bannerUrl = undefined;
 
       const res = await fetch(`${API_URL}/events/${eventId}`, {
@@ -503,12 +473,12 @@ export default function EditEventPage() {
               </button>
               <button
                 onClick={handleSave}
-                disabled={saving || uploadingImages}
+                disabled={saving}
                 className="flex-1 py-3.5 text-white font-bold rounded-xl transition-all hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2"
                 style={{ backgroundColor: '#00C2A8' }}
               >
                 <FaSave />
-                {uploadingImages ? 'Enviando imagens...' : saving ? 'Salvando...' : 'Salvar Alterações'}
+                {saving ? 'Salvando...' : 'Salvar Alterações'}
               </button>
             </div>
           </div>

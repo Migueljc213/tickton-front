@@ -32,10 +32,11 @@ interface NavItem {
 
 const NAV_BY_ROLE: Record<string, NavItem[]> = {
   participant: [
-    { label: 'Explorar Eventos', href: '/events',    icon: <FaCalendarAlt /> },
-    { label: 'Meus Ingressos',  href: '/tickets',   icon: <FaTicketAlt /> },
-    { label: 'Minha Equipe',    href: '/staff',     icon: <FaShieldAlt /> },
-    { label: 'Configurações',   href: '/settings',  icon: <FaCog /> },
+    { label: 'Explorar Eventos',   href: '/events',            icon: <FaCalendarAlt /> },
+    { label: 'Meus Ingressos',     href: '/tickets',           icon: <FaTicketAlt /> },
+    { label: 'Minha Equipe',       href: '/staff',             icon: <FaShieldAlt /> },
+    { label: 'Virar Organizador',  href: '/become-organizer',  icon: <FaUserTie /> },
+    { label: 'Configurações',      href: '/settings',          icon: <FaCog /> },
   ],
   organizer: [
     { label: 'Dashboard',       href: '/organizer/dashboard',    icon: <FaChartLine /> },

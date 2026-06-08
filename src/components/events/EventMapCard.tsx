@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { FaMapMarkerAlt, FaExternalLinkAlt, FaSpinner } from 'react-icons/fa';
 
@@ -44,12 +44,14 @@ export default function EventMapCard({ venueName, address, city, state }: Props)
   const [geocoding, setGeocoding] = useState(true);
   const [failed, setFailed] = useState(false);
 
-  const addressParts = [venueName, address, city, state].filter(Boolean);
-  const fullAddress = addressParts.join(', ');
+  const fullAddress = useMemo(
+    () => [venueName, address, city, state].filter(Boolean).join(', '),
+    [venueName, address, city, state],
+  );
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
 
   useEffect(() => {
-    if (addressParts.length === 0) {
+    if (!fullAddress) {
       setGeocoding(false);
       return;
     }
@@ -59,23 +61,20 @@ export default function EventMapCard({ venueName, address, city, state }: Props)
     geocode(fullAddress).then((result) => {
       if (result) {
         setCoords(result);
-      } else {
-        // Try just city + state if full address fails
-        const fallback = [city, state].filter(Boolean).join(', ');
-        if (fallback) {
-          return geocode(fallback).then((r) => {
-            if (r) setCoords(r);
-            else setFailed(true);
-          });
-        }
-        setFailed(true);
+        return;
       }
-      setGeocoding(false);
+      const fallback = [city, state].filter(Boolean).join(', ');
+      if (fallback) {
+        return geocode(fallback).then((r) => {
+          if (r) setCoords(r);
+          else setFailed(true);
+        });
+      }
+      setFailed(true);
     }).finally(() => setGeocoding(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fullAddress]);
+  }, [fullAddress, city, state]);
 
-  if (addressParts.length === 0) return null;
+  if (!fullAddress) return null;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">

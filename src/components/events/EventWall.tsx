@@ -12,7 +12,6 @@ import { storage } from '@/lib/utils/storage';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface EventPost {
   id: number;
@@ -33,7 +32,6 @@ interface Props {
   eventId: number;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function initials(name: string): string {
   return name
@@ -53,7 +51,6 @@ function relativeTime(iso: string): string {
   return `há ${Math.floor(h / 24)}d`;
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function PostCard({ post, isOwn }: { post: EventPost; isOwn: boolean }) {
   return (
@@ -214,7 +211,6 @@ function AccessMessage({
   return null;
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function EventWall({ eventId }: Props) {
   const [posts, setPosts] = useState<EventPost[]>([]);

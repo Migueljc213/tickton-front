@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { FaEnvelope, FaLock, FaTicketAlt, FaEye, FaEyeSlash, FaArrowRight } from 'react-icons/fa';
+import { FaEnvelope, FaLock, FaTicketAlt, FaEye, FaEyeSlash, FaArrowRight, FaCheckCircle } from 'react-icons/fa';
 import { useAuth } from '@/hooks';
 import { isEmailValid, isFieldEmpty } from '@/lib/utils/validation';
 
@@ -57,12 +57,17 @@ const FEATURES = [
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login, loading, error } = useAuth();
   const [email, setEmail]               = useState('');
   const [password, setPassword]         = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError]     = useState<string | null>(null);
   const [demoLoading, setDemoLoading]   = useState<string | null>(null);
+
+  const successMessage = searchParams.get('message') === 'organizer-created'
+    ? 'Conta de organizador criada! Faça login para acessar o painel.'
+    : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,6 +182,13 @@ export default function LoginPage() {
               </Link>
             </p>
           </div>
+
+          {successMessage && (
+            <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl px-4 py-3 mb-6">
+              <FaCheckCircle className="flex-shrink-0" />
+              {successMessage}
+            </div>
+          )}
 
           {/* ---- Acesso Rápido (Demo) ---- */}
           <div className="mb-8 p-4 rounded-2xl border border-dashed border-gray-200 bg-gray-50">

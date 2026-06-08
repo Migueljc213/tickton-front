@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useMemo, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -98,11 +98,12 @@ const SkeletonCard = () => (
   </div>
 );
 
-export default function EventsPage() {
+function EventsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { events, loading, error, searchEvents } = useEvents();
 
-  const [searchTerm, setSearchTerm]         = useState('');
+  const [searchTerm, setSearchTerm]         = useState(searchParams.get('q') ?? '');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedCity, setSelectedCity]     = useState('');
   const [selectedState, setSelectedState]   = useState('');
@@ -110,6 +111,12 @@ export default function EventsPage() {
   const [selectedEndDate, setSelectedEndDate]     = useState('');
   const [showFilters, setShowFilters]       = useState(false);
   const [sortMode, setSortMode]             = useState<SortMode>('organizer');
+
+  useEffect(() => {
+    const q = searchParams.get('q');
+    searchEvents({ title: q || undefined, isPublished: true });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getCategoryIcon  = (cat: string) => CATEGORIES.find((c) => c.value === cat)?.icon  ?? '🎊';
   const getCategoryLabel = (cat: string) => CATEGORIES.find((c) => c.value === cat)?.label ?? 'Outros';
@@ -451,5 +458,18 @@ export default function EventsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+
+export default function EventsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-[#00C2A8] border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <EventsContent />
+    </Suspense>
   );
 }

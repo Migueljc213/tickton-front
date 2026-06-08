@@ -23,15 +23,17 @@ import NotificationDropdown from '@/components/notifications/NotificationDropdow
 import { usersService } from '@/lib/api/services/users.service';
 
 const NAV_LINKS = [
-  { href: '/events',    label: 'Eventos' },
-  { href: '/organizer', label: 'Para Organizadores' },
-  { href: '/help',      label: 'Ajuda' },
+  { href: '/events',      label: 'Eventos' },
+  { href: '/organizers',  label: 'Organizadores' },
+  { href: '/organizer',   label: 'Para Organizadores' },
+  { href: '/help',        label: 'Ajuda' },
 ];
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen]     = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [searchQuery, setSearchQuery]   = useState('');
   const [scrolled, setScrolled]         = useState(false);
   const [userName, setUserName]         = useState<string | null>(null);
   const [userRole, setUserRole]         = useState<string | null>(null);
@@ -50,6 +52,7 @@ export default function Header() {
     setIsMenuOpen(false);
     setIsSearchOpen(false);
     setIsDropdownOpen(false);
+    setSearchQuery('');
   }, [pathname]);
 
   // Lê auth do localStorage; se nome ausente busca da API
@@ -83,6 +86,13 @@ export default function Header() {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
+
+  const handleSearch = () => {
+    const q = searchQuery.trim();
+    setIsSearchOpen(false);
+    setSearchQuery('');
+    router.push(q ? `/events?q=${encodeURIComponent(q)}` : '/events');
+  };
 
   const handleLogout = () => {
     authService.logout();
@@ -371,6 +381,9 @@ export default function Header() {
               <input
                 type="text"
                 placeholder="Buscar eventos, artistas, locais..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 className="w-full pl-11 pr-4 py-4 border border-gray-200 rounded-xl focus:border-turquoise focus:ring-2 focus:ring-turquoise/15 outline-none text-gray-900 placeholder-gray-400 text-sm"
                 autoFocus
               />

@@ -20,7 +20,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+
 
 interface TicketInfo {
   id: number;
@@ -40,7 +40,7 @@ interface ScanResult {
   info?: TicketInfo;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+
 
 function formatPrice(v: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
@@ -53,7 +53,7 @@ function formatDateTime(iso: string) {
   });
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+
 
 function TicketCard({ info, status }: { info: TicketInfo; status: ScanStatus }) {
   const borderColor = status === 'success' ? '#22c55e' : status === 'already_used' ? '#eab308' : '#ef4444';
@@ -122,7 +122,7 @@ const RESULT_CONFIG: Record<ScanStatus, { icon: React.ReactNode; text: string; c
   error:      { icon: <FaTimesCircle />,           text: '#dc2626', color: '#ef4444' },
 };
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+
 
 export default function CheckinPage() {
   const router = useRouter();

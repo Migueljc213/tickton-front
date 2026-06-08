@@ -6,7 +6,8 @@ import Link from 'next/link';
 import {
   FaArrowLeft, FaCalendarAlt, FaMapMarkerAlt, FaGlobe,
   FaCheckDouble, FaTicketAlt, FaPlus, FaPoll, FaAlignLeft,
-  FaTimes, FaCheckCircle,
+  FaTimes, FaCheckCircle, FaShoppingBag, FaBoxOpen, FaEdit,
+  FaTrash, FaShoppingCart, FaClipboardList,
 } from 'react-icons/fa';
 import { storage } from '@/lib/utils/storage';
 import { formatDate } from '@/lib/utils/format';
@@ -254,6 +255,517 @@ function OrgEventCard({ ev, dim }: { ev: OrgEvent; dim?: boolean }) {
   );
 }
 
+// ─── Store Types ──────────────────────────────────────────────────────────────
+interface StoreProduct {
+  id: number; organizerId: number; name: string; description: string | null;
+  price: number; stock: number; imageUrl: string | null; category: string;
+  isActive: boolean; createdAt: string; eventId: number | null; eventName: string | null;
+}
+interface StoreOrder {
+  id: number; productId: number; productName: string; customerName: string;
+  customerEmail: string; customerPhone: string | null; quantity: number;
+  unitPrice: number; totalAmount: number; status: 'pending' | 'confirmed' | 'cancelled';
+  notes: string | null; createdAt: string;
+}
+
+// ─── Product Card (visitor) ───────────────────────────────────────────────────
+function ProductCard({ product, onBuy }: { product: StoreProduct; onBuy: (p: StoreProduct) => void }) {
+  const outOfStock = product.stock === 0;
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+      {product.imageUrl ? (
+        <img src={product.imageUrl} alt={product.name} className="w-full h-44 object-cover" />
+      ) : (
+        <div className="w-full h-44 bg-gradient-to-br from-[#003B4A] to-[#00C2A8] flex items-center justify-center text-5xl">
+          <FaShoppingBag className="text-white opacity-60" />
+        </div>
+      )}
+      <div className="p-4 flex flex-col flex-1">
+        <span className="text-[10px] font-bold text-[#00C2A8] uppercase tracking-wider mb-1">{product.category}</span>
+        <h3 className="font-bold text-gray-900 text-sm leading-tight line-clamp-2 flex-1 mb-2">{product.name}</h3>
+        {product.description && (
+          <p className="text-xs text-gray-500 line-clamp-2 mb-3">{product.description}</p>
+        )}
+        <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-50">
+          <div>
+            <p className="text-lg font-black text-[#003B4A]">
+              R$ {Number(product.price).toFixed(2).replace('.', ',')}
+            </p>
+            <p className={`text-[11px] font-semibold ${outOfStock ? 'text-red-400' : 'text-gray-400'}`}>
+              {outOfStock ? 'Esgotado' : `${product.stock} em estoque`}
+            </p>
+          </div>
+          <button
+            onClick={() => !outOfStock && onBuy(product)}
+            disabled={outOfStock}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: outOfStock ? '#9ca3af' : 'linear-gradient(135deg,#003B4A,#00C2A8)' }}
+          >
+            <FaShoppingCart className="text-xs" /> Comprar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Buy Modal ────────────────────────────────────────────────────────────────
+function BuyModal({ product, onClose, onSuccess }: {
+  product: StoreProduct; onClose: () => void; onSuccess: () => void;
+}) {
+  const [name, setName]     = useState('');
+  const [email, setEmail]   = useState('');
+  const [phone, setPhone]   = useState('');
+  const [qty, setQty]       = useState(1);
+  const [notes, setNotes]   = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState<string | null>(null);
+  const [done, setDone]     = useState(false);
+
+  const total = (Number(product.price) * qty).toFixed(2).replace('.', ',');
+
+  const submit = async () => {
+    if (!name.trim() || !email.trim()) { setError('Nome e e-mail são obrigatórios'); return; }
+    const token = storage.getToken();
+    if (!token) { setError('Faça login para comprar'); return; }
+    setSaving(true); setError(null);
+    try {
+      const res = await fetch(`${API_URL}/organizer-store/products/${product.id}/buy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ customerName: name, customerEmail: email, customerPhone: phone || undefined, quantity: qty, notes: notes || undefined }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message ?? 'Erro ao realizar pedido'); }
+      setDone(true);
+      onSuccess();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Erro inesperado'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-5 border-b border-gray-100">
+          <h3 className="font-bold text-gray-900 text-lg">Finalizar pedido</h3>
+          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+            <FaTimes className="text-gray-500" />
+          </button>
+        </div>
+        {done ? (
+          <div className="p-8 text-center">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FaCheckCircle className="text-3xl text-green-500" />
+            </div>
+            <h4 className="font-bold text-gray-900 text-lg mb-2">Pedido realizado!</h4>
+            <p className="text-gray-500 text-sm mb-5">O organizador entrará em contato pelo e-mail informado.</p>
+            <button onClick={onClose} className="px-6 py-2.5 rounded-xl text-white font-bold text-sm" style={{ background: '#00C2A8' }}>Fechar</button>
+          </div>
+        ) : (
+          <div className="p-5 space-y-4">
+            <div className="bg-gray-50 rounded-xl p-4 flex gap-3 items-start">
+              {product.imageUrl
+                ? <img src={product.imageUrl} alt={product.name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                : <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-[#003B4A] to-[#00C2A8] flex items-center justify-center flex-shrink-0"><FaShoppingBag className="text-white" /></div>
+              }
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-gray-900 text-sm line-clamp-2">{product.name}</p>
+                <p className="text-[#00C2A8] font-black text-base">R$ {Number(product.price).toFixed(2).replace('.', ',')}</p>
+                <p className="text-xs text-gray-400">{product.stock} em estoque</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">Quantidade</label>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:border-[#00C2A8] hover:text-[#00C2A8] transition-colors font-bold">−</button>
+                <span className="w-10 text-center font-bold text-gray-900">{qty}</span>
+                <button onClick={() => setQty(Math.min(product.stock, qty + 1))} className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:border-[#00C2A8] hover:text-[#00C2A8] transition-colors font-bold">+</button>
+                <span className="text-sm text-gray-500 ml-1">Total: <span className="font-bold text-gray-900">R$ {total}</span></span>
+              </div>
+            </div>
+
+            <input className="input-form" placeholder="Seu nome *" value={name} onChange={e => setName(e.target.value)} />
+            <input className="input-form" type="email" placeholder="Seu e-mail *" value={email} onChange={e => setEmail(e.target.value)} />
+            <input className="input-form" placeholder="Telefone (opcional)" value={phone} onChange={e => setPhone(e.target.value)} />
+            <textarea className="input-form resize-none" rows={2} placeholder="Observações (tamanho, cor...)" value={notes} onChange={e => setNotes(e.target.value)} />
+
+            {error && <p className="text-sm text-red-500">{error}</p>}
+            <button onClick={submit} disabled={saving}
+              className="w-full py-3 rounded-xl font-bold text-white text-sm hover:opacity-90 disabled:opacity-50 transition-all"
+              style={{ background: 'linear-gradient(135deg,#003B4A,#00C2A8)' }}>
+              {saving ? 'Enviando...' : `Confirmar pedido · R$ ${total}`}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Product Form Modal (owner) ───────────────────────────────────────────────
+function ProductFormModal({ organizerId, product, events, onClose, onSaved }: {
+  organizerId: number; product: StoreProduct | null; events: OrgEvent[];
+  onClose: () => void; onSaved: () => void;
+}) {
+  const editing = product !== null;
+  const [name, setName]       = useState(product?.name ?? '');
+  const [desc, setDesc]       = useState(product?.description ?? '');
+  const [price, setPrice]     = useState(product ? String(product.price) : '');
+  const [stock, setStock]     = useState(product ? String(product.stock) : '');
+  const [imgUrl, setImgUrl]   = useState(product?.imageUrl ?? '');
+  const [cat, setCat]         = useState(product?.category ?? 'other');
+  const [eventId, setEventId] = useState<string>(product?.eventId ? String(product.eventId) : '');
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+
+  const CATEGORIES = ['other','clothing','accessories','food','drinks','collectibles','digital'];
+
+  const submit = async () => {
+    if (!name.trim() || !price || !stock) { setError('Nome, preço e estoque são obrigatórios'); return; }
+    const token = storage.getToken();
+    setSaving(true); setError(null);
+    try {
+      const body = {
+        name: name.trim(),
+        description: desc.trim() || undefined,
+        price: parseFloat(price),
+        stock: parseInt(stock),
+        imageUrl: imgUrl.trim() || undefined,
+        category: cat,
+        eventId: eventId ? parseInt(eventId) : null,
+      };
+      const url = editing
+        ? `${API_URL}/organizer-store/${organizerId}/products/${product!.id}`
+        : `${API_URL}/organizer-store/${organizerId}/products`;
+      const res = await fetch(url, {
+        method: editing ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message ?? 'Erro ao salvar'); }
+      onSaved(); onClose();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Erro inesperado'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-5 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl">
+          <h3 className="font-bold text-gray-900 text-lg">{editing ? 'Editar produto' : 'Novo produto'}</h3>
+          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><FaTimes className="text-gray-500" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <input className="input-form" placeholder="Nome do produto *" value={name} onChange={e => setName(e.target.value)} />
+          <textarea className="input-form resize-none" rows={2} placeholder="Descrição (opcional)" value={desc} onChange={e => setDesc(e.target.value)} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">Preço (R$) *</label>
+              <input className="input-form" type="number" min="0" step="0.01" placeholder="0,00" value={price} onChange={e => setPrice(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">Estoque *</label>
+              <input className="input-form" type="number" min="0" placeholder="0" value={stock} onChange={e => setStock(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">Categoria</label>
+              <select className="input-form" value={cat} onChange={e => setCat(e.target.value)}>
+                {CATEGORIES.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">Evento relacionado</label>
+              <select className="input-form" value={eventId} onChange={e => setEventId(e.target.value)}>
+                <option value="">Sem evento específico</option>
+                {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+              </select>
+            </div>
+          </div>
+          <input className="input-form" placeholder="URL da imagem (opcional)" value={imgUrl} onChange={e => setImgUrl(e.target.value)} />
+          {error && <p className="text-sm text-red-500">{error}</p>}
+          <button onClick={submit} disabled={saving}
+            className="w-full py-3 rounded-xl font-bold text-white text-sm hover:opacity-90 disabled:opacity-50 transition-all"
+            style={{ background: 'linear-gradient(135deg,#003B4A,#00C2A8)' }}>
+            {saving ? 'Salvando...' : editing ? 'Salvar alterações' : 'Criar produto'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Store Aside ──────────────────────────────────────────────────────────────
+function StoreAside({ organizerId, isOwner, hasToken, events }: {
+  organizerId: number; isOwner: boolean; hasToken: boolean; events: OrgEvent[];
+}) {
+  const [products, setProducts]     = useState<StoreProduct[]>([]);
+  const [orders, setOrders]         = useState<StoreOrder[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [buyTarget, setBuyTarget]   = useState<StoreProduct | null>(null);
+  const [editTarget, setEditTarget] = useState<StoreProduct | null | 'new'>(null);
+  const [showOrders, setShowOrders] = useState(false);
+
+  const loadProducts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const endpoint = isOwner
+        ? `${API_URL}/organizer-store/${organizerId}/products/manage`
+        : `${API_URL}/organizer-store/${organizerId}/products`;
+      const headers: Record<string, string> = {};
+      if (isOwner) { const t = storage.getToken(); if (t) headers['Authorization'] = `Bearer ${t}`; }
+      const res = await fetch(endpoint, { headers });
+      if (res.ok) setProducts(await res.json());
+    } finally { setLoading(false); }
+  }, [organizerId, isOwner]);
+
+  const loadOrders = useCallback(async () => {
+    const token = storage.getToken();
+    if (!token) return;
+    const res = await fetch(`${API_URL}/organizer-store/${organizerId}/orders`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) setOrders(await res.json());
+  }, [organizerId]);
+
+  useEffect(() => {
+    loadProducts();
+    if (isOwner) loadOrders();
+  }, [loadProducts, loadOrders, isOwner]);
+
+  const deleteProduct = async (p: StoreProduct) => {
+    if (!confirm(`Remover "${p.name}"?`)) return;
+    const token = storage.getToken();
+    await fetch(`${API_URL}/organizer-store/${organizerId}/products/${p.id}`, {
+      method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+    });
+    loadProducts();
+  };
+
+  const updateOrderStatus = async (orderId: number, status: string) => {
+    const token = storage.getToken();
+    await fetch(`${API_URL}/organizer-store/${organizerId}/orders/${orderId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ status }),
+    });
+    loadOrders();
+  };
+
+  const STATUS_COLORS: Record<string, string> = {
+    pending: 'bg-yellow-100 text-yellow-700',
+    confirmed: 'bg-green-100 text-green-700',
+    cancelled: 'bg-red-100 text-red-500',
+  };
+  const STATUS_LABELS: Record<string, string> = { pending: 'Pendente', confirmed: 'Confirmado', cancelled: 'Cancelado' };
+
+  const activeProducts = products.filter(p => p.isActive);
+
+  return (
+    <aside className="lg:sticky lg:top-20 space-y-3 pb-10">
+      {/* Header */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div
+          className="px-4 py-3 flex items-center justify-between"
+          style={{ background: 'linear-gradient(135deg,#003B4A,#00C2A8)' }}
+        >
+          <div className="flex items-center gap-2 text-white">
+            <FaShoppingBag className="text-sm" />
+            <span className="font-bold text-sm">Loja do Organizador</span>
+          </div>
+          {activeProducts.length > 0 && (
+            <span className="bg-white/20 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
+              {activeProducts.length} {activeProducts.length === 1 ? 'item' : 'itens'}
+            </span>
+          )}
+        </div>
+
+        {/* Owner controls */}
+        {isOwner && (
+          <div className="px-3 py-2 border-b border-gray-50 flex gap-2">
+            <button
+              onClick={() => setEditTarget('new')}
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-white text-xs font-semibold hover:opacity-90 transition-all"
+              style={{ background: '#00C2A8' }}
+            >
+              <FaPlus className="text-[10px]" /> Novo produto
+            </button>
+            <button
+              onClick={() => setShowOrders(!showOrders)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${showOrders ? 'bg-[#003B4A] text-white border-[#003B4A]' : 'text-gray-600 border-gray-200 hover:border-[#003B4A] hover:text-[#003B4A]'}`}
+            >
+              <FaClipboardList className="text-[10px]" />
+              Pedidos {orders.length > 0 && <span className={`rounded-full text-[10px] px-1.5 py-0.5 ${showOrders ? 'bg-white/20 text-white' : 'bg-[#003B4A] text-white'}`}>{orders.length}</span>}
+            </button>
+          </div>
+        )}
+
+        {/* Products list */}
+        <div className="divide-y divide-gray-50">
+          {loading ? (
+            [1,2,3].map(i => (
+              <div key={i} className="flex gap-3 p-3">
+                <div className="skeleton w-16 h-16 rounded-xl flex-shrink-0" />
+                <div className="flex-1 space-y-2 py-1">
+                  <div className="skeleton h-3 w-3/4 rounded" />
+                  <div className="skeleton h-4 w-1/2 rounded" />
+                  <div className="skeleton h-3 w-1/3 rounded" />
+                </div>
+              </div>
+            ))
+          ) : activeProducts.length === 0 ? (
+            <div className="py-10 text-center px-4">
+              <FaShoppingBag className="text-3xl text-gray-200 mx-auto mb-2" />
+              <p className="text-gray-400 text-sm font-medium">Loja vazia</p>
+              {isOwner && (
+                <button onClick={() => setEditTarget('new')}
+                  className="mt-3 text-[#00C2A8] text-xs font-semibold hover:underline">
+                  + Adicionar primeiro produto
+                </button>
+              )}
+            </div>
+          ) : (
+            activeProducts.map(p => {
+              const outOfStock = p.stock === 0;
+              return (
+                <div key={p.id} className="flex gap-3 p-3 hover:bg-gray-50/60 transition-colors group">
+                  {/* Imagem */}
+                  <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 relative">
+                    {p.imageUrl ? (
+                      <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-[#003B4A] to-[#00C2A8] flex items-center justify-center">
+                        <FaShoppingBag className="text-white text-lg" />
+                      </div>
+                    )}
+                    {outOfStock && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <span className="text-white text-[9px] font-bold">ESGOTADO</span>
+                      </div>
+                    )}
+                    {isOwner && !p.isActive && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <span className="text-white text-[9px] font-bold">INATIVO</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-gray-900 text-sm leading-tight line-clamp-1">{p.name}</p>
+
+                    {p.eventName && (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-[#00C2A8] font-semibold bg-[#00C2A8]/8 px-1.5 py-0.5 rounded-md mt-0.5 max-w-full">
+                        <FaTicketAlt className="text-[8px] flex-shrink-0" />
+                        <span className="truncate">{p.eventName}</span>
+                      </span>
+                    )}
+
+                    <div className="flex items-center justify-between mt-1.5 gap-1">
+                      <div>
+                        <p className="text-base font-black text-[#003B4A]">
+                          R$ {Number(p.price).toFixed(2).replace('.', ',')}
+                        </p>
+                        <p className={`text-[11px] font-semibold ${outOfStock ? 'text-red-400' : p.stock <= 5 ? 'text-amber-500' : 'text-gray-400'}`}>
+                          {outOfStock ? 'Esgotado' : `${p.stock} em estoque`}
+                        </p>
+                      </div>
+                      {!outOfStock && (
+                        <button
+                          onClick={() => setBuyTarget(p)}
+                          className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-white text-xs font-bold hover:opacity-90 transition-all"
+                          style={{ background: 'linear-gradient(135deg,#003B4A,#00C2A8)' }}
+                        >
+                          <FaShoppingCart className="text-[10px]" /> Comprar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Owner edit/delete hover actions */}
+                  {isOwner && (
+                    <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                      <button onClick={() => setEditTarget(p)}
+                        className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 hover:text-[#00C2A8] hover:bg-[#00C2A8]/10 transition-colors">
+                        <FaEdit className="text-[10px]" />
+                      </button>
+                      <button onClick={() => deleteProduct(p)}
+                        className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        <FaTrash className="text-[10px]" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* Orders panel (owner) */}
+      {isOwner && showOrders && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between">
+            <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+              <FaClipboardList className="text-[#00C2A8]" /> Pedidos recentes
+            </h3>
+          </div>
+          {orders.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-8">Nenhum pedido ainda</p>
+          ) : (
+            <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
+              {orders.map(o => (
+                <div key={o.id} className="p-3 space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900 text-xs line-clamp-1">{o.productName}</p>
+                      <p className="text-gray-500 text-xs">{o.customerName} · {o.quantity}x · <span className="font-bold text-[#003B4A]">R$ {Number(o.totalAmount).toFixed(2).replace('.', ',')}</span></p>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${STATUS_COLORS[o.status]}`}>
+                      {STATUS_LABELS[o.status]}
+                    </span>
+                  </div>
+                  {o.status === 'pending' && (
+                    <div className="flex gap-1.5">
+                      <button onClick={() => updateOrderStatus(o.id, 'confirmed')}
+                        className="flex-1 text-[11px] py-1 rounded-lg bg-green-50 text-green-600 font-semibold hover:bg-green-100 transition-colors">
+                        Confirmar
+                      </button>
+                      <button onClick={() => updateOrderStatus(o.id, 'cancelled')}
+                        className="flex-1 text-[11px] py-1 rounded-lg bg-red-50 text-red-500 font-semibold hover:bg-red-100 transition-colors">
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modals */}
+      {buyTarget && (
+        <BuyModal
+          product={buyTarget}
+          onClose={() => setBuyTarget(null)}
+          onSuccess={() => { loadProducts(); setBuyTarget(null); }}
+        />
+      )}
+      {editTarget !== null && (
+        <ProductFormModal
+          organizerId={organizerId}
+          product={editTarget === 'new' ? null : editTarget}
+          events={events}
+          onClose={() => setEditTarget(null)}
+          onSaved={loadProducts}
+        />
+      )}
+    </aside>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 type Tab = 'feed' | 'upcoming' | 'past';
 
@@ -353,7 +865,7 @@ export default function OrganizerProfilePage() {
         </button>
       </div>
 
-      <div className="container mx-auto px-4 max-w-4xl">
+      <div className="container mx-auto px-4 max-w-6xl">
 
         {/* ── Avatar + Info ─────────────────────────────────────────────────── */}
         <div className="relative -mt-14 mb-6 flex items-end gap-5">
@@ -412,7 +924,13 @@ export default function OrganizerProfilePage() {
           </div>
         </div>
 
-        {/* ── Tabs ──────────────────────────────────────────────────────────── */}
+        {/* ── Two-column layout ─────────────────────────────────────────────── */}
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
+
+        {/* ── Main column (feed + events) ───────────────────────────────────── */}
+        <div className="flex-1 min-w-0">
+
+        {/* Tabs */}
         <div className="flex gap-1 bg-white rounded-2xl p-1.5 shadow-sm border border-gray-100 mb-6">
           {([
             { key:'feed',     label:'Posts & Enquetes', icon:<FaAlignLeft/> },
@@ -521,6 +1039,15 @@ export default function OrganizerProfilePage() {
             )}
           </div>
         )}
+
+        </div>{/* end main column */}
+
+        {/* ── Store aside ───────────────────────────────────────────────────── */}
+        <div className="w-full lg:w-80 flex-shrink-0">
+          <StoreAside organizerId={organizerId} isOwner={isOwner} hasToken={hasToken} events={events} />
+        </div>
+
+        </div>{/* end two-column layout */}
       </div>
 
       {/* ── Modal ────────────────────────────────────────────────────────────── */}

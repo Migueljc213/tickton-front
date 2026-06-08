@@ -22,6 +22,9 @@ import {
   FaUserTie,
   FaExternalLinkAlt,
   FaCheckDouble,
+  FaShoppingBag,
+  FaShoppingCart,
+  FaTimes,
 } from 'react-icons/fa';
 import { useEvent, useTickets } from '@/hooks';
 import { useAuth } from '@/hooks';
@@ -33,6 +36,188 @@ import EventMapCard from '@/components/events/EventMapCard';
 const CHECKOUT_PATH = '/checkout';
 const EVENTS_PATH   = '/events';
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+
+// ─── Event Store Section ──────────────────────────────────────────────────────
+interface EventProduct {
+  id: number; name: string; description: string | null;
+  price: number; stock: number; imageUrl: string | null;
+  category: string; organizerId: number;
+}
+interface EventStoreOrder {
+  customerName: string; customerEmail: string;
+  customerPhone?: string; quantity: number; notes?: string;
+}
+
+function EventStoreSection({ eventId }: { eventId: number }) {
+  const [products, setProducts]   = useState<EventProduct[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [buyTarget, setBuyTarget] = useState<EventProduct | null>(null);
+  const [order, setOrder]         = useState<EventStoreOrder>({ customerName: '', customerEmail: '', quantity: 1 });
+  const [saving, setSaving]       = useState(false);
+  const [done, setDone]           = useState(false);
+  const [buyError, setBuyError]   = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_URL}/organizer-store/by-event/${eventId}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setProducts)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [eventId]);
+
+  if (!loading && products.length === 0) return null;
+
+  const total = buyTarget
+    ? (Number(buyTarget.price) * order.quantity).toFixed(2).replace('.', ',')
+    : '0,00';
+
+  const submitBuy = async () => {
+    if (!order.customerName.trim() || !order.customerEmail.trim()) {
+      setBuyError('Nome e e-mail são obrigatórios'); return;
+    }
+    const token = localStorage.getItem('token');
+    if (!token) { setBuyError('Faça login para comprar'); return; }
+    setSaving(true); setBuyError(null);
+    try {
+      const res = await fetch(`${API_URL}/organizer-store/products/${buyTarget!.id}/buy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...order, quantity: order.quantity }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message ?? 'Erro ao realizar pedido'); }
+      setDone(true);
+      setProducts(prev => prev.map(p => p.id === buyTarget!.id ? { ...p, stock: p.stock - order.quantity } : p));
+    } catch (e) { setBuyError(e instanceof Error ? e.message : 'Erro inesperado'); }
+    finally { setSaving(false); }
+  };
+
+  const closeModal = () => { setBuyTarget(null); setDone(false); setBuyError(null); setOrder({ customerName: '', customerEmail: '', quantity: 1 }); };
+
+  return (
+    <section className="mt-8">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-1 h-6 rounded-full bg-turquoise" />
+        <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <FaShoppingBag className="text-turquoise text-base" />
+          Produtos do Evento
+        </h2>
+      </div>
+
+      {loading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => (
+            <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="skeleton h-36 w-full" />
+              <div className="p-3 space-y-2">
+                <div className="skeleton h-3 w-3/4 rounded" />
+                <div className="skeleton h-5 w-1/2 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          {products.map(p => {
+            const outOfStock = p.stock === 0;
+            return (
+              <div key={p.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col">
+                {p.imageUrl ? (
+                  <img src={p.imageUrl} alt={p.name} className="w-full h-36 object-cover" />
+                ) : (
+                  <div className="w-full h-36 bg-gradient-to-br from-[#003B4A] to-[#00C2A8] flex items-center justify-center">
+                    <FaShoppingBag className="text-white text-3xl opacity-60" />
+                  </div>
+                )}
+                <div className="p-3 flex flex-col flex-1">
+                  <p className="font-bold text-gray-900 text-sm leading-tight line-clamp-2 flex-1">{p.name}</p>
+                  <div className="mt-2 flex items-end justify-between gap-1">
+                    <div>
+                      <p className="text-base font-black text-[#003B4A]">
+                        R$ {Number(p.price).toFixed(2).replace('.', ',')}
+                      </p>
+                      <p className={`text-[11px] font-semibold ${outOfStock ? 'text-red-400' : p.stock <= 5 ? 'text-amber-500' : 'text-gray-400'}`}>
+                        {outOfStock ? 'Esgotado' : `${p.stock} em estoque`}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => !outOfStock && setBuyTarget(p)}
+                      disabled={outOfStock}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-white text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                      style={{ background: outOfStock ? '#9ca3af' : 'linear-gradient(135deg,#003B4A,#00C2A8)' }}
+                    >
+                      <FaShoppingCart className="text-[10px]" /> Comprar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Buy Modal */}
+      {buyTarget && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={closeModal}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Finalizar pedido</h3>
+              <button onClick={closeModal} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                <FaTimes className="text-gray-500" />
+              </button>
+            </div>
+            {done ? (
+              <div className="p-8 text-center">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FaCheckCircle className="text-3xl text-green-500" />
+                </div>
+                <h4 className="font-bold text-gray-900 text-lg mb-2">Pedido realizado!</h4>
+                <p className="text-gray-500 text-sm mb-5">O organizador entrará em contato pelo e-mail informado.</p>
+                <button onClick={closeModal} className="px-6 py-2.5 rounded-xl text-white font-bold text-sm" style={{ background: '#00C2A8' }}>Fechar</button>
+              </div>
+            ) : (
+              <div className="p-5 space-y-4">
+                {/* Product summary */}
+                <div className="bg-gray-50 rounded-xl p-3 flex gap-3 items-center">
+                  {buyTarget.imageUrl
+                    ? <img src={buyTarget.imageUrl} alt={buyTarget.name} className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
+                    : <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-[#003B4A] to-[#00C2A8] flex items-center justify-center flex-shrink-0"><FaShoppingBag className="text-white" /></div>
+                  }
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-gray-900 text-sm line-clamp-1">{buyTarget.name}</p>
+                    <p className="text-[#00C2A8] font-black">R$ {Number(buyTarget.price).toFixed(2).replace('.', ',')}</p>
+                    <p className="text-xs text-gray-400">{buyTarget.stock} em estoque</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">Quantidade</label>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setOrder(o => ({ ...o, quantity: Math.max(1, o.quantity - 1) }))} className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:border-[#00C2A8] hover:text-[#00C2A8] transition-colors font-bold text-lg">−</button>
+                    <span className="w-10 text-center font-bold text-gray-900">{order.quantity}</span>
+                    <button onClick={() => setOrder(o => ({ ...o, quantity: Math.min(buyTarget.stock, o.quantity + 1) }))} className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:border-[#00C2A8] hover:text-[#00C2A8] transition-colors font-bold text-lg">+</button>
+                    <span className="text-sm text-gray-500 ml-1">Total: <span className="font-bold text-gray-900">R$ {total}</span></span>
+                  </div>
+                </div>
+
+                <input className="input-form" placeholder="Seu nome *" value={order.customerName} onChange={e => setOrder(o => ({ ...o, customerName: e.target.value }))} />
+                <input className="input-form" type="email" placeholder="Seu e-mail *" value={order.customerEmail} onChange={e => setOrder(o => ({ ...o, customerEmail: e.target.value }))} />
+                <input className="input-form" placeholder="Telefone (opcional)" value={order.customerPhone ?? ''} onChange={e => setOrder(o => ({ ...o, customerPhone: e.target.value }))} />
+                <textarea className="input-form resize-none" rows={2} placeholder="Tamanho, cor, observações..." value={order.notes ?? ''} onChange={e => setOrder(o => ({ ...o, notes: e.target.value }))} />
+
+                {buyError && <p className="text-sm text-red-500">{buyError}</p>}
+                <button onClick={submitBuy} disabled={saving}
+                  className="w-full py-3 rounded-xl font-bold text-white text-sm hover:opacity-90 disabled:opacity-50 transition-all"
+                  style={{ background: 'linear-gradient(135deg,#003B4A,#00C2A8)' }}>
+                  {saving ? 'Enviando...' : `Confirmar pedido · R$ ${total}`}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
 
 interface OrganizerInfo {
   id: number;
@@ -441,6 +626,9 @@ export default function EventDetailsPage() {
 
             {/* Mural */}
             {eventId && <EventWall eventId={eventId} />}
+
+            {/* Produtos do evento */}
+            {eventId && <EventStoreSection eventId={eventId} />}
           </div>
 
           {/* ---- Sidebar de ingressos ---- */}

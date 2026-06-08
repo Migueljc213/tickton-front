@@ -68,7 +68,10 @@ function CheckoutContent() {
     if (eventId) fetchTickets();
   }, [eventId, fetchTickets]);
 
-  const total = selections.reduce((s, x) => s + x.totalPrice, 0);
+  const PLATFORM_FEE_RATE = 0.07;
+  const subtotal = selections.reduce((s, x) => s + x.totalPrice, 0);
+  const platformFee = Math.round(subtotal * PLATFORM_FEE_RATE * 100) / 100;
+  const total = subtotal + platformFee;
   const getAvailable = (t: Ticket) => t.quantityAvailable - t.quantitySold;
 
   const updateSelection = (ticket: Ticket, qty: number) => {
@@ -373,7 +376,19 @@ function CheckoutContent() {
               <span className="font-semibold text-gray-900">{formatPrice(s.totalPrice)}</span>
             </div>
           ))}
-          <div className="flex justify-between items-center px-5 py-4 bg-gray-50">
+          <div className="px-5 py-3 border-t border-gray-100 space-y-2 bg-gray-50/50">
+            <div className="flex justify-between text-sm text-gray-500">
+              <span>Subtotal</span>
+              <span>{formatPrice(subtotal)}</span>
+            </div>
+            {platformFee > 0 && (
+              <div className="flex justify-between text-sm text-gray-500">
+                <span>Taxa de serviço (7%)</span>
+                <span>{formatPrice(platformFee)}</span>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-between items-center px-5 py-4 bg-gray-50 border-t border-gray-200">
             <span className="font-bold text-gray-900">Total</span>
             <span className="text-xl font-bold text-[#00C2A8]">{formatPrice(total)}</span>
           </div>
@@ -528,9 +543,21 @@ function CheckoutContent() {
                         <span className="font-semibold text-gray-800">{formatPrice(s.totalPrice)}</span>
                       </div>
                     ))}
-                    <div className="border-t border-gray-100 pt-3 flex justify-between items-center">
-                      <span className="font-bold text-gray-900 text-sm">Total</span>
-                      <span className="text-lg font-bold text-[#00C2A8]">{formatPrice(total)}</span>
+                    <div className="border-t border-gray-100 pt-2 space-y-1.5">
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>Subtotal</span>
+                        <span>{formatPrice(subtotal)}</span>
+                      </div>
+                      {platformFee > 0 && (
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>Taxa de serviço (7%)</span>
+                          <span>{formatPrice(platformFee)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center pt-1 border-t border-gray-100">
+                        <span className="font-bold text-gray-900 text-sm">Total</span>
+                        <span className="text-lg font-bold text-[#00C2A8]">{formatPrice(total)}</span>
+                      </div>
                     </div>
                   </>
                 )}
