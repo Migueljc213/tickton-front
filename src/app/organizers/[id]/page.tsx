@@ -3,11 +3,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useRef } from 'react';
 import {
   FaArrowLeft, FaCalendarAlt, FaMapMarkerAlt, FaGlobe,
   FaCheckDouble, FaTicketAlt, FaPlus, FaPoll, FaAlignLeft,
-  FaTimes, FaCheckCircle, FaShoppingBag, FaBoxOpen, FaEdit,
-  FaTrash, FaShoppingCart, FaClipboardList,
+  FaTimes, FaCheckCircle, FaShoppingBag, FaEdit,
+  FaTrash, FaShoppingCart, FaClipboardList, FaImage, FaLink,
+  FaCamera, FaSpinner,
 } from 'react-icons/fa';
 import { storage } from '@/lib/utils/storage';
 import { formatDate } from '@/lib/utils/format';
@@ -17,7 +19,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Organizer {
   id: number; userId: number; companyName: string;
-  description: string | null; logoUrl: string | null;
+  description: string | null; logoUrl: string | null; coverUrl: string | null;
   city: string | null; state: string | null;
   website: string | null; isVerified: boolean;
 }
@@ -25,7 +27,7 @@ interface OrgEvent {
   id: number; title: string; eventDate: string; category: string;
   city: string | null; state: string | null; bannerUrl: string | null; isPublished: boolean;
 }
-interface OrgPost  { id: number; organizerId: number; content: string; createdAt: string; }
+interface OrgPost  { id: number; organizerId: number; content: string; imageUrl?: string | null; linkUrl?: string | null; linkTitle?: string | null; createdAt: string; }
 interface OrgPoll  { id: number; organizerId: number; question: string; options: string[]; totalVotes: number; createdAt: string; }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -127,6 +129,11 @@ function CreateModal({ organizerId, onClose, onCreated }: {
 }) {
   const [tab, setTab]         = useState<'post'|'poll'>('post');
   const [content, setContent] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [linkUrl, setLinkUrl]   = useState('');
+  const [linkTitle, setLinkTitle] = useState('');
+  const [showImageField, setShowImageField] = useState(false);
+  const [showLinkField, setShowLinkField]   = useState(false);
   const [question, setQuestion] = useState('');
   const [options, setOptions]   = useState(['','']);
   const [saving, setSaving]     = useState(false);
@@ -138,9 +145,13 @@ function CreateModal({ organizerId, onClose, onCreated }: {
     try {
       if (tab === 'post') {
         if (!content.trim()) { setError('Escreva algo!'); return; }
+        const body: Record<string, string> = { content };
+        if (imageUrl.trim()) body.imageUrl = imageUrl.trim();
+        if (linkUrl.trim()) body.linkUrl = linkUrl.trim();
+        if (linkTitle.trim()) body.linkTitle = linkTitle.trim();
         const r = await fetch(`${API_URL}/organizer-content/${organizerId}/post`, {
           method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`},
-          body: JSON.stringify({ content }),
+          body: JSON.stringify(body),
         });
         if (!r.ok) throw new Error('Erro ao publicar');
       } else {
@@ -161,9 +172,9 @@ function CreateModal({ organizerId, onClose, onCreated }: {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
       onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg"
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-5 border-b border-gray-100">
+        <div className="flex items-center justify-between p-5 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl">
           <h3 className="font-bold text-gray-900 text-lg">Nova publicação</h3>
           <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
             <FaTimes className="text-gray-500" />
@@ -175,15 +186,57 @@ function CreateModal({ organizerId, onClose, onCreated }: {
               className={`flex-1 py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${
                 tab===t ? 'text-[#00C2A8] border-b-2 border-[#00C2A8]' : 'text-gray-400 hover:text-gray-700'
               }`}>
-              {t==='post' ? <><FaAlignLeft/> Texto</> : <><FaPoll/> Enquete</>}
+              {t==='post' ? <><FaAlignLeft/> Publicação</> : <><FaPoll/> Enquete</>}
             </button>
           ))}
         </div>
         <div className="p-5 space-y-4">
           {tab === 'post' ? (
-            <textarea className="input-form resize-none" rows={5} autoFocus maxLength={2000}
-              placeholder="Compartilhe uma novidade com seus seguidores..."
-              value={content} onChange={e => setContent(e.target.value)} />
+            <>
+              <textarea className="input-form resize-none" rows={4} autoFocus maxLength={2000}
+                placeholder="Compartilhe uma novidade com seus seguidores..."
+                value={content} onChange={e => setContent(e.target.value)} />
+
+              {/* Image field */}
+              {showImageField && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">URL da imagem</label>
+                  <input className="input-form" placeholder="https://exemplo.com/imagem.jpg"
+                    value={imageUrl} onChange={e => setImageUrl(e.target.value)} />
+                  {imageUrl && (
+                    <img src={imageUrl} alt="preview" className="w-full rounded-xl object-cover max-h-48 border border-gray-100"
+                      onError={e => (e.currentTarget.style.display = 'none')} />
+                  )}
+                </div>
+              )}
+
+              {/* Link field */}
+              {showLinkField && (
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Link</label>
+                  <input className="input-form" type="url" placeholder="https://..."
+                    value={linkUrl} onChange={e => setLinkUrl(e.target.value)} />
+                  <input className="input-form" placeholder="Título do link (opcional)"
+                    value={linkTitle} onChange={e => setLinkTitle(e.target.value)} maxLength={255} />
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={() => setShowImageField(v => !v)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+                    showImageField ? 'bg-[#00C2A8]/10 text-[#00C2A8]' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}>
+                  <FaImage /> Imagem
+                </button>
+                <button type="button" onClick={() => setShowLinkField(v => !v)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+                    showLinkField ? 'bg-[#00C2A8]/10 text-[#00C2A8]' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}>
+                  <FaLink /> Link
+                </button>
+              </div>
+            </>
           ) : (
             <div className="space-y-3">
               <input className="input-form" autoFocus maxLength={500}
@@ -220,6 +273,47 @@ function CreateModal({ organizerId, onClose, onCreated }: {
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Cover upload button (owner only) ────────────────────────────────────────
+function CoverUploadButton({ organizerId, onUploaded }: {
+  organizerId: number; onUploaded: (url: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = async (file: File) => {
+    const token = storage.getToken();
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${API_URL}/organizers/${organizerId}/cover`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Erro ao enviar capa');
+      const { coverUrl } = await res.json();
+      onUploaded(coverUrl);
+    } catch { /* silently ignore */ }
+    finally { setUploading(false); }
+  };
+
+  return (
+    <>
+      <input ref={inputRef} type="file" accept="image/*" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
+      <button
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        className="absolute bottom-4 right-4 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-black/40 hover:bg-black/60 text-white backdrop-blur-sm transition-all disabled:opacity-50"
+      >
+        {uploading ? <FaSpinner className="animate-spin text-xs" /> : <FaCamera className="text-xs" />}
+        {uploading ? 'Enviando...' : 'Alterar capa'}
+      </button>
+    </>
   );
 }
 
@@ -855,14 +949,23 @@ export default function OrganizerProfilePage() {
     <div className="min-h-screen bg-gray-50">
 
       {/* ── Cover banner ─────────────────────────────────────────────────────── */}
-      <div className="h-48 md:h-56 relative overflow-hidden"
-        style={{ background:'linear-gradient(135deg,#003B4A 0%,#007465 60%,#00C2A8 100%)' }}>
-        <div className="absolute inset-0 opacity-10"
-          style={{ backgroundImage:'radial-gradient(circle at 20% 50%,white 1px,transparent 1px),radial-gradient(circle at 80% 20%,white 1px,transparent 1px)', backgroundSize:'40px 40px' }}/>
+      <div className="h-48 md:h-56 relative overflow-hidden">
+        {organizer.coverUrl ? (
+          <img src={`${API_URL}${organizer.coverUrl}`} alt="Capa" className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full"
+            style={{ background:'linear-gradient(135deg,#003B4A 0%,#007465 60%,#00C2A8 100%)' }}>
+            <div className="absolute inset-0 opacity-10"
+              style={{ backgroundImage:'radial-gradient(circle at 20% 50%,white 1px,transparent 1px),radial-gradient(circle at 80% 20%,white 1px,transparent 1px)', backgroundSize:'40px 40px' }}/>
+          </div>
+        )}
         <button onClick={() => router.back()}
-          className="absolute top-5 left-5 flex items-center gap-2 text-white/80 hover:text-white text-sm bg-white/10 hover:bg-white/20 backdrop-blur-sm px-4 py-2 rounded-xl transition-all">
+          className="absolute top-5 left-5 flex items-center gap-2 text-white/80 hover:text-white text-sm bg-black/20 hover:bg-black/30 backdrop-blur-sm px-4 py-2 rounded-xl transition-all">
           <FaArrowLeft className="text-xs"/> Voltar
         </button>
+        {isOwner && (
+          <CoverUploadButton organizerId={organizer.id} onUploaded={(url) => setOrganizer(prev => prev ? { ...prev, coverUrl: url } : prev)} />
+        )}
       </div>
 
       <div className="container mx-auto px-4 max-w-6xl">
@@ -992,7 +1095,37 @@ export default function OrganizerProfilePage() {
                 </div>
                 {/* Content */}
                 {item.kind === 'post' && (
-                  <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{item.data.content}</p>
+                  <div className="space-y-3">
+                    <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{item.data.content}</p>
+                    {item.data.imageUrl && (
+                      <img
+                        src={item.data.imageUrl.startsWith('/uploads') ? `${API_URL}${item.data.imageUrl}` : item.data.imageUrl}
+                        alt=""
+                        className="w-full rounded-xl object-cover max-h-80 border border-gray-100"
+                        onError={e => (e.currentTarget.style.display = 'none')}
+                      />
+                    )}
+                    {item.data.linkUrl && (
+                      <a
+                        href={item.data.linkUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-[#00C2A8] hover:bg-[#00C2A8]/5 transition-all group"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-[#00C2A8]/10 flex items-center justify-center flex-shrink-0">
+                          <FaLink className="text-[#00C2A8] text-sm" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-800 group-hover:text-[#00C2A8] transition-colors truncate">
+                            {item.data.linkTitle || item.data.linkUrl}
+                          </p>
+                          {item.data.linkTitle && (
+                            <p className="text-xs text-gray-400 truncate">{item.data.linkUrl}</p>
+                          )}
+                        </div>
+                      </a>
+                    )}
+                  </div>
                 )}
                 {item.kind === 'poll' && (
                   <>

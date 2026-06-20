@@ -66,9 +66,6 @@ export default function Footer() {
               <Link href="/organizer/dashboard" className="block text-light-green/90 hover:text-white transition-colors">
                 Dashboard
               </Link>
-              <Link href="/organizer/pricing" className="block text-light-green/90 hover:text-white transition-colors">
-                Preços
-              </Link>
               <Link href="/organizer/features" className="block text-light-green/90 hover:text-white transition-colors">
                 Funcionalidades
               </Link>

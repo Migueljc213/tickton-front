@@ -16,6 +16,7 @@ import {
 import { useAuth } from '@/hooks';
 import { storage } from '@/lib/utils/storage';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import { useToast, ToastContainer } from '@/components/ui/Toast';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -76,13 +77,15 @@ function validateDatetime(value: string): 'missing' | 'missing-time' | 'invalid'
   return 'invalid';
 }
 
+const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+
 export default function NewEventPage() {
   const router = useRouter();
   const { getToken } = useAuth();
+  const { toasts, toast, dismiss } = useToast();
 
   const [step, setStep] = useState<Step>('event');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<EventFieldErrors>({});
   const [createdEventId, setCreatedEventId] = useState<number | null>(null);
   const [organizerId, setOrganizerId] = useState<number | null>(null);
@@ -96,11 +99,11 @@ export default function NewEventPage() {
     const userId = storage.getUserId();
     if (!token || !userId) return;
     fetch(`${API_URL}/organizers`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
         if (!data) return;
         const orgs: Array<{ id: number; userId: number }> = data.organizers ?? data;
-        const myOrg = Array.isArray(orgs) ? orgs.find(o => o.userId === userId) : null;
+        const myOrg = Array.isArray(orgs) ? orgs.find((o) => o.userId === userId) : null;
         if (myOrg) setOrganizerId(myOrg.id);
       })
       .catch(() => null);
@@ -129,7 +132,11 @@ export default function NewEventPage() {
   const setEventField = (k: string, v: string | boolean) => {
     setEvent((prev) => ({ ...prev, [k]: v }));
     if (k === 'title' || k === 'eventDate' || k === 'eventEndDate') {
-      setFieldErrors((prev) => { const n = { ...prev }; delete n[k as keyof EventFieldErrors]; return n; });
+      setFieldErrors((prev) => {
+        const n = { ...prev };
+        delete n[k as keyof EventFieldErrors];
+        return n;
+      });
     }
   };
 
@@ -159,7 +166,9 @@ export default function NewEventPage() {
           state: data.uf ?? prev.state,
         }));
       }
-    } catch { /* ignora */ } finally {
+    } catch {
+      /* ignora */
+    } finally {
       setCepLoading(false);
     }
   };
@@ -170,7 +179,8 @@ export default function NewEventPage() {
     setImageFiles((prev) => [...prev, ...newFiles]);
     newFiles.forEach((f) => {
       const reader = new FileReader();
-      reader.onload = (e) => setImagePreviews((prev) => [...prev, e.target?.result as string]);
+      reader.onload = (e) =>
+        setImagePreviews((prev) => [...prev, e.target?.result as string]);
       reader.readAsDataURL(f);
     });
   };
@@ -209,7 +219,11 @@ export default function NewEventPage() {
         return 'Preço inválido em um dos lotes';
       if (!l.quantityAvailable || Number(l.quantityAvailable) < 1)
         return 'Quantidade deve ser maior que 0';
-      if (l.saleStartDate && l.saleEndDate && new Date(l.saleEndDate) <= new Date(l.saleStartDate))
+      if (
+        l.saleStartDate &&
+        l.saleEndDate &&
+        new Date(l.saleEndDate) <= new Date(l.saleStartDate)
+      )
         return `Lote "${l.name}": fim das vendas deve ser posterior ao início`;
     }
     return null;
@@ -217,16 +231,24 @@ export default function NewEventPage() {
 
   const handleNextToTickets = () => {
     const errs = validateEventFields();
-    if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      const firstMsg = Object.values(errs)[0]!;
+      toast.error(firstMsg);
+      scrollTop();
+      return;
+    }
     setFieldErrors({});
-    setError(null);
     setStep('tickets');
   };
 
   const handleNextToReview = () => {
     const err = validateLotes();
-    if (err) { setError(err); return; }
-    setError(null);
+    if (err) {
+      toast.error(err);
+      scrollTop();
+      return;
+    }
     setStep('review');
   };
 
@@ -234,16 +256,15 @@ export default function NewEventPage() {
     const token = getToken();
     if (!token) { router.push('/login'); return; }
     setLoading(true);
-    setError(null);
 
     if (!organizerId) {
-      setError('Perfil de organizador não encontrado. Acesse seu perfil e complete o cadastro.');
+      toast.error('Perfil de organizador não encontrado. Acesse seu perfil e complete o cadastro.');
+      scrollTop();
       setLoading(false);
       return;
     }
 
     try {
-      const bannerUrl = undefined;
       const str = (v: string) => v.trim() || undefined;
 
       const evtRes = await fetch(`${API_URL}/events`, {
@@ -264,7 +285,7 @@ export default function NewEventPage() {
           state: str(event.state),
           zipcode: str(event.zipcode),
           onlineUrl: str(event.onlineUrl),
-          bannerUrl,
+          bannerUrl: undefined,
           maxAttendees: event.maxAttendees ? Number(event.maxAttendees) : undefined,
           isPublic: event.isPublished,
         }),
@@ -302,10 +323,13 @@ export default function NewEventPage() {
         }
       }
 
+      toast.success('Evento criado com sucesso!');
       setStep('review');
       setTimeout(() => router.push('/organizer/dashboard'), 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro inesperado');
+      const msg = err instanceof Error ? err.message : 'Erro inesperado';
+      toast.error(msg);
+      scrollTop();
     } finally {
       setLoading(false);
     }
@@ -322,6 +346,7 @@ export default function NewEventPage() {
   if (createdEventId && step === 'review') {
     return (
       <DashboardLayout userRole="organizer">
+        <ToastContainer toasts={toasts} dismiss={dismiss} />
         <div className="flex items-center justify-center min-h-screen">
           <div className="bg-white rounded-2xl shadow-sm p-10 text-center max-w-sm">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -337,222 +362,315 @@ export default function NewEventPage() {
 
   return (
     <DashboardLayout userRole="organizer">
+      <ToastContainer toasts={toasts} dismiss={dismiss} />
+
       <div className="bg-gray-50 min-h-screen">
-        <div className="text-white py-8" style={{ background: 'linear-gradient(135deg, #003B4A, #00C2A8)' }}>
-          <div className="container mx-auto px-4 max-w-3xl">
-            <h1 className="text-2xl font-bold">Criar Novo Evento</h1>
-            <div className="flex items-center gap-2 mt-4">
-              {STEPS.map((s, i) => (
-                <div key={s.key} className="flex items-center gap-2">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${i <= stepIdx ? 'bg-white text-[#003B4A]' : 'bg-white/20 text-white/60'}`}>
-                    {i < stepIdx ? <FaCheckCircle className="text-[#00C2A8]" /> : i + 1}
-                  </div>
-                  <span className={`text-sm hidden sm:block ${i <= stepIdx ? 'text-white font-semibold' : 'text-white/60'}`}>{s.label}</span>
-                  {i < STEPS.length - 1 && <div className={`h-0.5 w-8 ${i < stepIdx ? 'bg-white' : 'bg-white/30'}`} />}
+        {/* Header */}
+        <div
+          className="text-white py-6 px-6"
+          style={{ background: 'linear-gradient(135deg, #003B4A, #00C2A8)' }}
+        >
+          <h1 className="text-2xl font-bold mb-4">Criar Novo Evento</h1>
+          <div className="flex items-center gap-2">
+            {STEPS.map((s, i) => (
+              <div key={s.key} className="flex items-center gap-2">
+                <div
+                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                    i <= stepIdx ? 'bg-white text-[#003B4A]' : 'bg-white/20 text-white/60'
+                  }`}
+                >
+                  {i < stepIdx ? <FaCheckCircle className="text-[#00C2A8]" /> : i + 1}
                 </div>
-              ))}
-            </div>
+                <span
+                  className={`text-sm hidden sm:block ${
+                    i <= stepIdx ? 'text-white font-semibold' : 'text-white/60'
+                  }`}
+                >
+                  {s.label}
+                </span>
+                {i < STEPS.length - 1 && (
+                  <div className={`h-0.5 w-8 ${i < stepIdx ? 'bg-white' : 'bg-white/30'}`} />
+                )}
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="container mx-auto px-4 max-w-3xl py-8">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-6">
-              {error}
-            </div>
-          )}
-
-          {/* STEP 1 */}
+        <div className="p-6">
+          {/* ─── STEP 1: duas colunas ─── */}
           {step === 'event' && (
-            <div className="bg-white rounded-2xl shadow-sm p-6 space-y-5">
-              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                <FaCalendarAlt className="text-[#00C2A8]" /> Informações do Evento
-              </h2>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {/* Coluna esquerda — dados principais */}
+              <div className="bg-white rounded-2xl shadow-sm p-6 space-y-5">
+                <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                  <FaCalendarAlt className="text-[#00C2A8]" /> Informações do Evento
+                </h2>
 
-              <div>
-                <label className="label-form">Título do evento *</label>
-                <input
-                  type="text"
-                  className={`input-form ${fieldErrors.title ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
-                  placeholder="Ex: Festival de Música Eletrônica 2025"
-                  value={event.title}
-                  onChange={(e) => setEventField('title', e.target.value)}
-                />
-                {fieldErrors.title && <p className="mt-1.5 text-xs text-red-600">{fieldErrors.title}</p>}
-              </div>
-
-              <div>
-                <label className="label-form">Descrição</label>
-                <textarea rows={4} className="input-form resize-none" placeholder="Descreva seu evento..."
-                  value={event.description} onChange={(e) => setEventField('description', e.target.value)} />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label-form">Categoria *</label>
-                  <select className="input-form" value={event.category} onChange={(e) => setEventField('category', e.target.value)}>
-                    {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="label-form">Formato</label>
-                  <select className="input-form" value={event.locationType} onChange={(e) => setEventField('locationType', e.target.value)}>
-                    <option value="presencial">Presencial</option>
-                    <option value="online">Online</option>
-                    <option value="híbrido">Híbrido</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label-form">Data de início *</label>
+                  <label className="label-form">Título do evento *</label>
                   <input
-                    type="datetime-local"
-                    className={`input-form ${fieldErrors.eventDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
-                    value={event.eventDate}
-                    onChange={(e) => setEventField('eventDate', e.target.value)}
+                    type="text"
+                    className={`input-form ${fieldErrors.title ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
+                    placeholder="Ex: Festival de Música Eletrônica 2025"
+                    value={event.title}
+                    onChange={(e) => setEventField('title', e.target.value)}
                   />
-                  {fieldErrors.eventDate && <p className="mt-1.5 text-xs text-red-600">{fieldErrors.eventDate}</p>}
+                  {fieldErrors.title && (
+                    <p className="mt-1.5 text-xs text-red-600">{fieldErrors.title}</p>
+                  )}
                 </div>
+
                 <div>
-                  <label className="label-form">Data de término</label>
-                  <input
-                    type="datetime-local"
-                    className={`input-form ${fieldErrors.eventEndDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
-                    value={event.eventEndDate}
-                    onChange={(e) => setEventField('eventEndDate', e.target.value)}
+                  <label className="label-form">Descrição</label>
+                  <textarea
+                    rows={3}
+                    className="input-form resize-none"
+                    placeholder="Descreva seu evento..."
+                    value={event.description}
+                    onChange={(e) => setEventField('description', e.target.value)}
                   />
-                  {fieldErrors.eventEndDate && <p className="mt-1.5 text-xs text-red-600">{fieldErrors.eventEndDate}</p>}
                 </div>
-              </div>
 
-              {event.locationType !== 'online' && (
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-gray-700 flex items-center gap-2">
-                    <FaMapMarkerAlt className="text-[#00C2A8]" /> Local
-                  </h3>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="label-form">Nome do local</label>
-                    <input type="text" className="input-form" placeholder="Ex: Allianz Parque"
-                      value={event.venueName} onChange={(e) => setEventField('venueName', e.target.value)} />
+                    <label className="label-form">Categoria *</label>
+                    <select
+                      className="input-form"
+                      value={event.category}
+                      onChange={(e) => setEventField('category', e.target.value)}
+                    >
+                      {CATEGORIES.map((c) => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
                   </div>
-
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="label-form">CEP</label>
-                      <div className="relative">
-                        <input type="text" className="input-form" maxLength={9} placeholder="00000-000"
-                          value={event.zipcode}
-                          onChange={(e) => setEventField('zipcode', e.target.value)}
-                          onBlur={(e) => handleCepBlur(e.target.value)} />
-                        {cepLoading && (
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 flex items-center gap-1">
-                            <FaSearch className="animate-spin" /> buscando...
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="col-span-2">
-                      <label className="label-form">Endereço (preenchido pelo CEP)</label>
-                      <input type="text" className="input-form" placeholder="Rua, número"
-                        value={event.address} onChange={(e) => setEventField('address', e.target.value)} />
-                    </div>
-                  </div>
-
                   <div>
-                    <label className="label-form">Complemento</label>
-                    <input type="text" className="input-form" placeholder="Apto, bloco, sala, etc."
-                      value={event.complement} onChange={(e) => setEventField('complement', e.target.value)} />
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="col-span-2">
-                      <label className="label-form">Cidade</label>
-                      <input type="text" className="input-form" value={event.city}
-                        onChange={(e) => setEventField('city', e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="label-form">UF</label>
-                      <input type="text" maxLength={2} className="input-form uppercase" value={event.state}
-                        onChange={(e) => setEventField('state', e.target.value.toUpperCase())} />
-                    </div>
+                    <label className="label-form">Formato</label>
+                    <select
+                      className="input-form"
+                      value={event.locationType}
+                      onChange={(e) => setEventField('locationType', e.target.value)}
+                    >
+                      <option value="presencial">Presencial</option>
+                      <option value="online">Online</option>
+                      <option value="híbrido">Híbrido</option>
+                    </select>
                   </div>
                 </div>
-              )}
 
-              {event.locationType !== 'presencial' && (
-                <div>
-                  <label className="label-form">URL do evento online</label>
-                  <input type="url" className="input-form" placeholder="https://..."
-                    value={event.onlineUrl} onChange={(e) => setEventField('onlineUrl', e.target.value)} />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="label-form">Data de início *</label>
+                    <input
+                      type="datetime-local"
+                      className={`input-form ${fieldErrors.eventDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
+                      value={event.eventDate}
+                      onChange={(e) => setEventField('eventDate', e.target.value)}
+                    />
+                    {fieldErrors.eventDate && (
+                      <p className="mt-1.5 text-xs text-red-600">{fieldErrors.eventDate}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="label-form">Data de término</label>
+                    <input
+                      type="datetime-local"
+                      className={`input-form ${fieldErrors.eventEndDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
+                      value={event.eventEndDate}
+                      onChange={(e) => setEventField('eventEndDate', e.target.value)}
+                    />
+                    {fieldErrors.eventEndDate && (
+                      <p className="mt-1.5 text-xs text-red-600">{fieldErrors.eventEndDate}</p>
+                    )}
+                  </div>
                 </div>
-              )}
 
-              <div>
-                <label className="label-form">Capacidade máxima</label>
-                <input type="number" min="1" className="input-form" placeholder="Ex: 500"
-                  value={event.maxAttendees} onChange={(e) => setEventField('maxAttendees', e.target.value)} />
-              </div>
-
-              {/* Upload de imagens */}
-              <div>
-                <label className="label-form flex items-center gap-2">
-                  <FaImages className="text-[#00C2A8]" /> Imagens do evento (até 10)
-                </label>
-                <p className="text-xs text-gray-400 mb-3">A primeira imagem será usada como capa do evento.</p>
-
-                <label className="block w-full border-2 border-dashed border-[#00C2A8]/40 rounded-xl p-6 text-center cursor-pointer hover:border-[#00C2A8] hover:bg-[#00C2A8]/5 transition-all">
-                  <input type="file" accept="image/*" multiple className="hidden"
-                    onChange={(e) => handleImageFiles(e.target.files)} />
-                  <FaImages className="text-3xl text-[#00C2A8]/50 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500">Clique ou arraste imagens aqui</p>
-                  <p className="text-xs text-gray-400 mt-1">PNG, JPG, WEBP • Máx. 5 MB por arquivo</p>
-                </label>
-
-                {imagePreviews.length > 0 && (
-                  <div className="grid grid-cols-4 gap-3 mt-3">
-                    {imagePreviews.map((src, i) => (
-                      <div key={i} className="relative group">
-                        {i === 0 && (
-                          <span className="absolute top-1 left-1 z-10 text-[10px] font-bold bg-[#00C2A8] text-white px-1.5 py-0.5 rounded">
-                            CAPA
-                          </span>
-                        )}
-                        <img src={src} alt="" className="w-full h-24 object-cover rounded-xl border border-gray-200" />
-                        <button
-                          type="button"
-                          onClick={() => removeImage(i)}
-                          className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <FaTimes className="text-xs" />
-                        </button>
-                      </div>
-                    ))}
+                {event.locationType !== 'presencial' && (
+                  <div>
+                    <label className="label-form">URL do evento online</label>
+                    <input
+                      type="url"
+                      className="input-form"
+                      placeholder="https://..."
+                      value={event.onlineUrl}
+                      onChange={(e) => setEventField('onlineUrl', e.target.value)}
+                    />
                   </div>
                 )}
+
+                <div>
+                  <label className="label-form">Capacidade máxima</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="input-form"
+                    placeholder="Ex: 500"
+                    value={event.maxAttendees}
+                    onChange={(e) => setEventField('maxAttendees', e.target.value)}
+                  />
+                </div>
+
+                <div className="flex items-center gap-3 p-4 bg-[#00C2A8]/5 rounded-xl border border-[#00C2A8]/20">
+                  <input
+                    type="checkbox"
+                    id="publish"
+                    checked={event.isPublished}
+                    onChange={(e) => setEventField('isPublished', e.target.checked)}
+                    className="w-4 h-4 accent-[#00C2A8]"
+                  />
+                  <label htmlFor="publish" className="text-sm font-medium text-gray-700 cursor-pointer">
+                    Publicar imediatamente (visível para todos)
+                  </label>
+                </div>
+
+                <button
+                  onClick={handleNextToTickets}
+                  className="w-full py-3.5 text-white font-bold rounded-xl transition-all hover:opacity-90"
+                  style={{ backgroundColor: '#00C2A8' }}
+                >
+                  Próximo: Criar Lotes
+                </button>
               </div>
 
-              <div className="flex items-center gap-3 p-4 bg-[#00C2A8]/5 rounded-xl border border-[#00C2A8]/20">
-                <input type="checkbox" id="publish" checked={event.isPublished}
-                  onChange={(e) => setEventField('isPublished', e.target.checked)}
-                  className="w-4 h-4 accent-[#00C2A8]" />
-                <label htmlFor="publish" className="text-sm font-medium text-gray-700 cursor-pointer">
-                  Publicar imediatamente (visível para todos)
-                </label>
-              </div>
+              {/* Coluna direita — local + imagens */}
+              <div className="space-y-6">
+                {event.locationType !== 'online' && (
+                  <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                      <FaMapMarkerAlt className="text-[#00C2A8]" /> Local
+                    </h3>
 
-              <button onClick={handleNextToTickets}
-                className="w-full py-3.5 text-white font-bold rounded-xl transition-all hover:opacity-90"
-                style={{ backgroundColor: '#00C2A8' }}>
-                Próximo: Criar Lotes
-              </button>
+                    <div>
+                      <label className="label-form">Nome do local</label>
+                      <input
+                        type="text"
+                        className="input-form"
+                        placeholder="Ex: Allianz Parque"
+                        value={event.venueName}
+                        onChange={(e) => setEventField('venueName', e.target.value)}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="label-form">CEP</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            className="input-form"
+                            maxLength={9}
+                            placeholder="00000-000"
+                            value={event.zipcode}
+                            onChange={(e) => setEventField('zipcode', e.target.value)}
+                            onBlur={(e) => handleCepBlur(e.target.value)}
+                          />
+                          {cepLoading && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 flex items-center gap-1">
+                              <FaSearch className="animate-spin" /> buscando...
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="label-form">Endereço</label>
+                        <input
+                          type="text"
+                          className="input-form"
+                          placeholder="Rua, número"
+                          value={event.address}
+                          onChange={(e) => setEventField('address', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="label-form">Complemento</label>
+                      <input
+                        type="text"
+                        className="input-form"
+                        placeholder="Apto, bloco, sala, etc."
+                        value={event.complement}
+                        onChange={(e) => setEventField('complement', e.target.value)}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="col-span-2">
+                        <label className="label-form">Cidade</label>
+                        <input
+                          type="text"
+                          className="input-form"
+                          value={event.city}
+                          onChange={(e) => setEventField('city', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="label-form">UF</label>
+                        <input
+                          type="text"
+                          maxLength={2}
+                          className="input-form uppercase"
+                          value={event.state}
+                          onChange={(e) => setEventField('state', e.target.value.toUpperCase())}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Imagens */}
+                <div className="bg-white rounded-2xl shadow-sm p-6 space-y-3">
+                  <label className="label-form flex items-center gap-2 !mb-0">
+                    <FaImages className="text-[#00C2A8]" /> Imagens do evento (até 10)
+                  </label>
+                  <p className="text-xs text-gray-400">A primeira imagem será usada como capa.</p>
+
+                  <label className="block w-full border-2 border-dashed border-[#00C2A8]/40 rounded-xl p-5 text-center cursor-pointer hover:border-[#00C2A8] hover:bg-[#00C2A8]/5 transition-all">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => handleImageFiles(e.target.files)}
+                    />
+                    <FaImages className="text-2xl text-[#00C2A8]/50 mx-auto mb-1.5" />
+                    <p className="text-sm text-gray-500">Clique ou arraste imagens aqui</p>
+                    <p className="text-xs text-gray-400 mt-0.5">PNG, JPG, WEBP • Máx. 5 MB</p>
+                  </label>
+
+                  {imagePreviews.length > 0 && (
+                    <div className="grid grid-cols-4 gap-2">
+                      {imagePreviews.map((src, i) => (
+                        <div key={i} className="relative group">
+                          {i === 0 && (
+                            <span className="absolute top-1 left-1 z-10 text-[10px] font-bold bg-[#00C2A8] text-white px-1.5 py-0.5 rounded">
+                              CAPA
+                            </span>
+                          )}
+                          <img
+                            src={src}
+                            alt=""
+                            className="w-full h-20 object-cover rounded-xl border border-gray-200"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeImage(i)}
+                            className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <FaTimes className="text-xs" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
-          {/* STEP 2 */}
+          {/* ─── STEP 2: Lotes ─── */}
           {step === 'tickets' && (
-            <div className="space-y-4">
+            <div className="max-w-4xl space-y-4">
               <div className="bg-white rounded-2xl shadow-sm p-6">
                 <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-5">
                   <FaTicketAlt className="text-[#00C2A8]" /> Lotes de Ingressos
@@ -564,7 +682,10 @@ export default function NewEventPage() {
                       <div className="flex justify-between items-center">
                         <span className="font-semibold text-gray-700">Lote {idx + 1}</span>
                         {lotes.length > 1 && (
-                          <button onClick={() => removeLote(idx)} className="text-red-400 hover:text-red-600 transition-colors">
+                          <button
+                            onClick={() => removeLote(idx)}
+                            className="text-red-400 hover:text-red-600 transition-colors"
+                          >
                             <FaTrash />
                           </button>
                         )}
@@ -573,18 +694,33 @@ export default function NewEventPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="col-span-2">
                           <label className="label-form">Nome do lote *</label>
-                          <input type="text" className="input-form" placeholder="Ex: Pista, VIP, Meia"
-                            value={lote.name} onChange={(e) => setLoteField(idx, 'name', e.target.value)} />
+                          <input
+                            type="text"
+                            className="input-form"
+                            placeholder="Ex: Pista, VIP, Meia"
+                            value={lote.name}
+                            onChange={(e) => setLoteField(idx, 'name', e.target.value)}
+                          />
                         </div>
                         <div>
                           <label className="label-form">Descrição</label>
-                          <input type="text" className="input-form" placeholder="Descrição opcional"
-                            value={lote.description} onChange={(e) => setLoteField(idx, 'description', e.target.value)} />
+                          <input
+                            type="text"
+                            className="input-form"
+                            placeholder="Descrição opcional"
+                            value={lote.description}
+                            onChange={(e) => setLoteField(idx, 'description', e.target.value)}
+                          />
                         </div>
                         <div>
                           <label className="label-form">Tipo</label>
-                          <select className="input-form" value={lote.ticketType}
-                            onChange={(e) => setLoteField(idx, 'ticketType', e.target.value as 'paid' | 'free')}>
+                          <select
+                            className="input-form"
+                            value={lote.ticketType}
+                            onChange={(e) =>
+                              setLoteField(idx, 'ticketType', e.target.value as 'paid' | 'free')
+                            }
+                          >
                             <option value="paid">Pago</option>
                             <option value="free">Gratuito</option>
                           </select>
@@ -604,64 +740,116 @@ export default function NewEventPage() {
                         )}
                         <div>
                           <label className="label-form">Quantidade *</label>
-                          <input type="number" min="1" className="input-form" placeholder="100"
-                            value={lote.quantityAvailable} onChange={(e) => setLoteField(idx, 'quantityAvailable', e.target.value)} />
+                          <input
+                            type="number"
+                            min="1"
+                            className="input-form"
+                            placeholder="100"
+                            value={lote.quantityAvailable}
+                            onChange={(e) => setLoteField(idx, 'quantityAvailable', e.target.value)}
+                          />
                         </div>
                         <div>
                           <label className="label-form">Início das vendas</label>
-                          <input type="datetime-local" className="input-form"
-                            value={lote.saleStartDate} onChange={(e) => setLoteField(idx, 'saleStartDate', e.target.value)} />
+                          <input
+                            type="datetime-local"
+                            className="input-form"
+                            value={lote.saleStartDate}
+                            onChange={(e) => setLoteField(idx, 'saleStartDate', e.target.value)}
+                          />
                         </div>
                         <div>
                           <label className="label-form">Fim das vendas</label>
-                          <input type="datetime-local" className="input-form"
-                            value={lote.saleEndDate} onChange={(e) => setLoteField(idx, 'saleEndDate', e.target.value)} />
+                          <input
+                            type="datetime-local"
+                            className="input-form"
+                            value={lote.saleEndDate}
+                            onChange={(e) => setLoteField(idx, 'saleEndDate', e.target.value)}
+                          />
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                <button onClick={addLote}
-                  className="w-full mt-4 py-3 border-2 border-dashed border-[#00C2A8]/40 text-[#00C2A8] rounded-xl font-semibold flex items-center justify-center gap-2 hover:border-[#00C2A8] hover:bg-[#00C2A8]/5 transition-all">
+                <button
+                  onClick={addLote}
+                  className="w-full mt-4 py-3 border-2 border-dashed border-[#00C2A8]/40 text-[#00C2A8] rounded-xl font-semibold flex items-center justify-center gap-2 hover:border-[#00C2A8] hover:bg-[#00C2A8]/5 transition-all"
+                >
                   <FaPlus /> Adicionar Lote
                 </button>
               </div>
 
               <div className="flex gap-3">
-                <button onClick={() => setStep('event')}
-                  className="flex-1 py-3.5 border border-gray-300 text-gray-700 font-bold rounded-xl hover:border-gray-400 transition-all">
+                <button
+                  onClick={() => setStep('event')}
+                  className="flex-1 py-3.5 border border-gray-300 text-gray-700 font-bold rounded-xl hover:border-gray-400 transition-all"
+                >
                   Voltar
                 </button>
-                <button onClick={handleNextToReview}
+                <button
+                  onClick={handleNextToReview}
                   className="flex-1 py-3.5 text-white font-bold rounded-xl transition-all hover:opacity-90"
-                  style={{ backgroundColor: '#00C2A8' }}>
+                  style={{ backgroundColor: '#00C2A8' }}
+                >
                   Revisar e Publicar
                 </button>
               </div>
             </div>
           )}
 
-          {/* STEP 3 */}
+          {/* ─── STEP 3: Revisão ─── */}
           {step === 'review' && !createdEventId && (
-            <div className="space-y-4">
+            <div className="max-w-4xl space-y-4">
               <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
                 <h2 className="text-lg font-bold text-gray-800">Revisar Evento</h2>
 
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div><span className="text-gray-400">Título</span><p className="font-semibold text-gray-800">{event.title}</p></div>
-                  <div><span className="text-gray-400">Categoria</span><p className="font-semibold text-gray-800 capitalize">{event.category}</p></div>
-                  <div><span className="text-gray-400">Data</span><p className="font-semibold text-gray-800">{event.eventDate ? new Date(event.eventDate).toLocaleString('pt-BR') : '-'}</p></div>
-                  <div><span className="text-gray-400">Local</span><p className="font-semibold text-gray-800">{event.venueName || event.city || event.locationType}</p></div>
-                  <div><span className="text-gray-400">Status</span><p className={`font-semibold ${event.isPublished ? 'text-green-600' : 'text-yellow-600'}`}>{event.isPublished ? 'Publicado' : 'Rascunho'}</p></div>
-                  <div><span className="text-gray-400">Imagens</span><p className="font-semibold text-gray-800">{imagePreviews.length} foto(s)</p></div>
-                  <div><span className="text-gray-400">Lotes</span><p className="font-semibold text-gray-800">{lotes.length} lote(s)</p></div>
+                  <div>
+                    <span className="text-gray-400">Título</span>
+                    <p className="font-semibold text-gray-800">{event.title}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Categoria</span>
+                    <p className="font-semibold text-gray-800 capitalize">{event.category}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Data</span>
+                    <p className="font-semibold text-gray-800">
+                      {event.eventDate ? new Date(event.eventDate).toLocaleString('pt-BR') : '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Local</span>
+                    <p className="font-semibold text-gray-800">
+                      {event.venueName || event.city || event.locationType}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Status</span>
+                    <p className={`font-semibold ${event.isPublished ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {event.isPublished ? 'Publicado' : 'Rascunho'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Imagens</span>
+                    <p className="font-semibold text-gray-800">{imagePreviews.length} foto(s)</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Lotes</span>
+                    <p className="font-semibold text-gray-800">{lotes.length} lote(s)</p>
+                  </div>
                 </div>
 
                 {imagePreviews.length > 0 && (
                   <div className="grid grid-cols-5 gap-2">
                     {imagePreviews.map((src, i) => (
-                      <img key={i} src={src} alt="" className="w-full h-16 object-cover rounded-lg border border-gray-200" />
+                      <img
+                        key={i}
+                        src={src}
+                        alt=""
+                        className="w-full h-16 object-cover rounded-lg border border-gray-200"
+                      />
                     ))}
                   </div>
                 )}
@@ -670,7 +858,10 @@ export default function NewEventPage() {
                   <h3 className="font-semibold text-gray-700 mb-3">Lotes</h3>
                   <div className="space-y-2">
                     {lotes.map((l, i) => (
-                      <div key={i} className="flex justify-between items-center bg-gray-50 rounded-xl px-4 py-3 text-sm">
+                      <div
+                        key={i}
+                        className="flex justify-between items-center bg-gray-50 rounded-xl px-4 py-3 text-sm"
+                      >
                         <div>
                           <span className="font-semibold text-gray-800">{l.name}</span>
                           <span className="text-gray-400 ml-2">· {l.quantityAvailable} ingressos</span>
@@ -685,13 +876,18 @@ export default function NewEventPage() {
               </div>
 
               <div className="flex gap-3">
-                <button onClick={() => setStep('tickets')}
-                  className="flex-1 py-3.5 border border-gray-300 text-gray-700 font-bold rounded-xl hover:border-gray-400 transition-all">
+                <button
+                  onClick={() => setStep('tickets')}
+                  className="flex-1 py-3.5 border border-gray-300 text-gray-700 font-bold rounded-xl hover:border-gray-400 transition-all"
+                >
                   Voltar
                 </button>
-                <button onClick={handleSubmit} disabled={loading}
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading}
                   className="flex-1 py-3.5 text-white font-bold rounded-xl transition-all hover:opacity-90 disabled:opacity-60"
-                  style={{ backgroundColor: '#00C2A8' }}>
+                  style={{ backgroundColor: '#00C2A8' }}
+                >
                   {loading ? 'Publicando...' : 'Criar Evento'}
                 </button>
               </div>
@@ -699,7 +895,6 @@ export default function NewEventPage() {
           )}
         </div>
       </div>
-
     </DashboardLayout>
   );
 }

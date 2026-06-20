@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaSave, FaCheckCircle, FaBuilding, FaUniversity, FaUser, FaCamera, FaSpinner } from 'react-icons/fa';
+import { FaSave, FaCheckCircle, FaBuilding, FaUniversity, FaUser, FaCamera, FaSpinner, FaImage } from 'react-icons/fa';
 import { useAuth } from '@/hooks';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const BACKEND_URL = API_URL;
 
 const BRAZIL_STATES = [
   'AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT',
@@ -23,7 +24,9 @@ export default function OrganizerProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [organizerId, setOrganizerId] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const [orgForm, setOrgForm] = useState({
     companyName: '',
@@ -35,6 +38,7 @@ export default function OrganizerProfilePage() {
     zipcode: '',
     description: '',
     logoUrl: '',
+    coverUrl: '',
     website: '',
   });
 
@@ -97,6 +101,7 @@ export default function OrganizerProfilePage() {
               zipcode: myOrg.zipcode ?? '',
               description: myOrg.description ?? '',
               logoUrl: myOrg.logoUrl ?? '',
+              coverUrl: myOrg.coverUrl ?? '',
               website: myOrg.website ?? '',
             });
           }
@@ -112,6 +117,32 @@ export default function OrganizerProfilePage() {
 
   const setOrgField = (k: string, v: string) => setOrgForm((prev) => ({ ...prev, [k]: v }));
   const setBankField = (k: string, v: string) => setBankForm((prev) => ({ ...prev, [k]: v }));
+
+  const handleCoverUpload = async (file: File) => {
+    const token = getToken();
+    if (!token || !organizerId) return;
+    setUploadingCover(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${API_URL}/organizers/${organizerId}/cover`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.message ?? 'Erro ao fazer upload da capa');
+      }
+      const { coverUrl } = await res.json();
+      setOrgField('coverUrl', coverUrl);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro no upload da capa');
+    } finally {
+      setUploadingCover(false);
+    }
+  };
 
   const handleLogoUpload = async (file: File) => {
     const token = getToken();
@@ -170,6 +201,7 @@ export default function OrganizerProfilePage() {
             zipcode: orgForm.zipcode,
             description: orgForm.description,
             logoUrl: orgForm.logoUrl,
+            coverUrl: orgForm.coverUrl || undefined,
             website: orgForm.website,
           }),
         });
@@ -201,12 +233,33 @@ export default function OrganizerProfilePage() {
   return (
     <DashboardLayout userRole="organizer">
       <div className="bg-gray-50 min-h-screen">
-        {/* Header */}
-        <div className="text-white py-8" style={{ background: 'linear-gradient(135deg, #003B4A, #00C2A8)' }}>
-          <div className="container mx-auto px-4 max-w-3xl">
-            <h1 className="text-2xl font-bold">Meu Perfil</h1>
-            <p className="text-white/70 text-sm mt-1">Gerencie seus dados e informações bancárias</p>
-          </div>
+        {/* Cover photo — LinkedIn style */}
+        <div className="relative h-44 md:h-52 overflow-hidden bg-gray-200">
+          {orgForm.coverUrl ? (
+            <img
+              src={orgForm.coverUrl.startsWith('/uploads') ? `${BACKEND_URL}${orgForm.coverUrl}` : orgForm.coverUrl}
+              alt="Capa"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full" style={{ background: 'linear-gradient(135deg, #003B4A, #007465, #00C2A8)' }}>
+              <div className="absolute inset-0 opacity-10"
+                style={{ backgroundImage:'radial-gradient(circle at 20% 50%,white 1px,transparent 1px)', backgroundSize:'40px 40px' }}/>
+            </div>
+          )}
+          <input ref={coverInputRef} type="file" accept="image/*" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleCoverUpload(f); e.target.value = ''; }} />
+          <button
+            type="button"
+            onClick={() => coverInputRef.current?.click()}
+            disabled={uploadingCover}
+            className="absolute bottom-4 right-4 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-black/40 hover:bg-black/60 text-white backdrop-blur-sm transition-all disabled:opacity-50"
+          >
+            {uploadingCover
+              ? <FaSpinner className="animate-spin text-xs" />
+              : <FaImage className="text-xs" />}
+            {uploadingCover ? 'Enviando...' : 'Alterar capa'}
+          </button>
         </div>
 
         <div className="container mx-auto px-4 max-w-3xl py-8 space-y-6">

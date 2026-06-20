@@ -339,6 +339,7 @@ export interface User extends BaseEntity {
   cpfCnpj: string;
   bankInfo?: string;
   role: string;
+  avatarUrl?: string | null;
 }
 
 export interface CreateUserRequest {
@@ -355,6 +356,7 @@ export interface UpdateUserRequest {
   password?: string;
   cpfCnpj?: string;
   bankInfo?: string;
+  avatarUrl?: string;
 }
 
 export interface FindAllUsersResponse {

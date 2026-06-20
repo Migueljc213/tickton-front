@@ -31,6 +31,15 @@ export const usersService = {
   async deleteUser(id: number): Promise<void> {
     return apiClient.delete<void>(`${API_ENDPOINTS.users.base}/${id}`);
   },
+
+  async uploadAvatar(id: number, file: File): Promise<{ avatarUrl: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.postForm<{ avatarUrl: string }>(
+      `${API_ENDPOINTS.users.base}/${id}/avatar`,
+      formData,
+    );
+  },
 };
 
 export default usersService;

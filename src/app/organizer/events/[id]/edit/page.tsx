@@ -2,9 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { FaCalendarAlt, FaMapMarkerAlt, FaSave, FaCheckCircle, FaSearch, FaImages, FaTimes } from 'react-icons/fa';
+import {
+  FaCalendarAlt,
+  FaMapMarkerAlt,
+  FaSave,
+  FaCheckCircle,
+  FaSearch,
+  FaImages,
+  FaTimes,
+} from 'react-icons/fa';
 import { useAuth } from '@/hooks';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import { useToast, ToastContainer } from '@/components/ui/Toast';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -41,15 +50,17 @@ function validateDatetime(value: string): 'missing' | 'missing-time' | 'invalid'
   return 'invalid';
 }
 
+const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+
 export default function EditEventPage() {
   const router = useRouter();
   const params = useParams();
   const eventId = Number(params.id);
   const { getToken } = useAuth();
+  const { toasts, toast, dismiss } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<EditFieldErrors>({});
 
@@ -92,7 +103,10 @@ export default function EditEventPage() {
             return typeof ev.imageUrls === 'string' ? JSON.parse(ev.imageUrls) : ev.imageUrls;
           }
           if (ev.bannerUrl) {
-            try { const p = JSON.parse(ev.bannerUrl); if (Array.isArray(p)) return p; } catch {}
+            try {
+              const p = JSON.parse(ev.bannerUrl);
+              if (Array.isArray(p)) return p;
+            } catch {}
             return [ev.bannerUrl];
           }
           return [];
@@ -118,18 +132,23 @@ export default function EditEventPage() {
         });
         setImagePreviews(imgs);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Erro ao carregar evento');
+        toast.error(e instanceof Error ? e.message : 'Erro ao carregar evento');
       } finally {
         setLoading(false);
       }
     };
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, getToken]);
 
   const setField = (k: string, v: string | boolean | string[]) => {
     setForm((prev) => ({ ...prev, [k]: v }));
     if (k === 'title' || k === 'eventDate' || k === 'eventEndDate') {
-      setFieldErrors((prev) => { const n = { ...prev }; delete n[k as keyof EditFieldErrors]; return n; });
+      setFieldErrors((prev) => {
+        const n = { ...prev };
+        delete n[k as keyof EditFieldErrors];
+        return n;
+      });
     }
   };
 
@@ -148,7 +167,9 @@ export default function EditEventPage() {
           state: data.uf ?? prev.state,
         }));
       }
-    } catch { /* ignora erro de CEP */ } finally {
+    } catch {
+      /* ignora erro de CEP */
+    } finally {
       setCepLoading(false);
     }
   };
@@ -159,7 +180,8 @@ export default function EditEventPage() {
     setImageFiles((prev) => [...prev, ...newFiles]);
     newFiles.forEach((f) => {
       const reader = new FileReader();
-      reader.onload = (e) => setImagePreviews((prev) => [...prev, e.target?.result as string]);
+      reader.onload = (e) =>
+        setImagePreviews((prev) => [...prev, e.target?.result as string]);
       reader.readAsDataURL(f);
     });
   };
@@ -195,16 +217,20 @@ export default function EditEventPage() {
       }
     }
 
-    if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      toast.error(Object.values(errs)[0]!);
+      scrollTop();
+      return;
+    }
     setFieldErrors({});
 
     const token = getToken();
     if (!token) { router.push('/login'); return; }
 
     setSaving(true);
-    setError(null);
     try {
-      const bannerUrl = undefined;
+      const rawZip = form.zipcode.replace(/\D/g, '');
 
       const res = await fetch(`${API_URL}/events/${eventId}`, {
         method: 'PATCH',
@@ -218,12 +244,10 @@ export default function EditEventPage() {
           locationType: form.locationType,
           venueName: form.venueName || undefined,
           address: form.address || undefined,
-          complement: form.complement || undefined,
           city: form.city || undefined,
           state: form.state || undefined,
-          zipcode: form.zipcode || undefined,
+          zipcode: rawZip.length === 8 ? rawZip : undefined,
           onlineUrl: form.onlineUrl || undefined,
-          bannerUrl,
           maxAttendees: form.maxAttendees ? Number(form.maxAttendees) : undefined,
           isPublished: form.isPublished,
           status: form.isPublished ? 'published' : 'draft',
@@ -235,10 +259,12 @@ export default function EditEventPage() {
         throw new Error(d.message ?? 'Erro ao salvar');
       }
 
+      toast.success('Evento atualizado com sucesso!');
       setSaved(true);
       setTimeout(() => router.push('/organizer/dashboard'), 1800);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro inesperado');
+      toast.error(e instanceof Error ? e.message : 'Erro inesperado');
+      scrollTop();
     } finally {
       setSaving(false);
     }
@@ -257,6 +283,7 @@ export default function EditEventPage() {
   if (saved) {
     return (
       <DashboardLayout userRole="organizer">
+        <ToastContainer toasts={toasts} dismiss={dismiss} />
         <div className="flex items-center justify-center min-h-screen">
           <div className="bg-white rounded-2xl shadow-sm p-10 text-center max-w-sm">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -272,219 +299,297 @@ export default function EditEventPage() {
 
   return (
     <DashboardLayout userRole="organizer">
+      <ToastContainer toasts={toasts} dismiss={dismiss} />
+
       <div className="bg-gray-50 min-h-screen">
-        <div className="text-white py-8" style={{ background: 'linear-gradient(135deg, #003B4A, #00C2A8)' }}>
-          <div className="container mx-auto px-4 max-w-3xl">
-            <h1 className="text-2xl font-bold">Editar Evento</h1>
-          </div>
+        {/* Header */}
+        <div
+          className="text-white py-6 px-6"
+          style={{ background: 'linear-gradient(135deg, #003B4A, #00C2A8)' }}
+        >
+          <h1 className="text-2xl font-bold">Editar Evento</h1>
         </div>
 
-        <div className="container mx-auto px-4 max-w-3xl py-8">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-6">
-              {error}
-            </div>
-          )}
+        <div className="p-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {/* Coluna esquerda — dados principais */}
+            <div className="bg-white rounded-2xl shadow-sm p-6 space-y-5">
+              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <FaCalendarAlt className="text-[#00C2A8]" /> Informações do Evento
+              </h2>
 
-          <div className="bg-white rounded-2xl shadow-sm p-6 space-y-5">
-            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-              <FaCalendarAlt className="text-[#00C2A8]" /> Informações do Evento
-            </h2>
-
-            <div>
-              <label className="label-form">Título do evento *</label>
-              <input
-                type="text"
-                className={`input-form ${fieldErrors.title ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
-                placeholder="Ex: Festival de Música Eletrônica 2025"
-                value={form.title}
-                onChange={(e) => setField('title', e.target.value)}
-              />
-              {fieldErrors.title && <p className="mt-1.5 text-xs text-red-600">{fieldErrors.title}</p>}
-            </div>
-
-            <div>
-              <label className="label-form">Descrição</label>
-              <textarea rows={4} className="input-form resize-none" placeholder="Descreva seu evento..."
-                value={form.description} onChange={(e) => setField('description', e.target.value)} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="label-form">Categoria *</label>
-                <select className="input-form" value={form.category} onChange={(e) => setField('category', e.target.value)}>
-                  {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="label-form">Formato</label>
-                <select className="input-form" value={form.locationType} onChange={(e) => setField('locationType', e.target.value)}>
-                  <option value="presencial">Presencial</option>
-                  <option value="online">Online</option>
-                  <option value="híbrido">Híbrido</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="label-form">Data de início *</label>
+                <label className="label-form">Título do evento *</label>
                 <input
-                  type="datetime-local"
-                  className={`input-form ${fieldErrors.eventDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
-                  value={form.eventDate}
-                  onChange={(e) => setField('eventDate', e.target.value)}
+                  type="text"
+                  className={`input-form ${fieldErrors.title ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
+                  placeholder="Ex: Festival de Música Eletrônica 2025"
+                  value={form.title}
+                  onChange={(e) => setField('title', e.target.value)}
                 />
-                {fieldErrors.eventDate && <p className="mt-1.5 text-xs text-red-600">{fieldErrors.eventDate}</p>}
+                {fieldErrors.title && (
+                  <p className="mt-1.5 text-xs text-red-600">{fieldErrors.title}</p>
+                )}
               </div>
+
               <div>
-                <label className="label-form">Data de término</label>
-                <input
-                  type="datetime-local"
-                  className={`input-form ${fieldErrors.eventEndDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
-                  value={form.eventEndDate}
-                  onChange={(e) => setField('eventEndDate', e.target.value)}
+                <label className="label-form">Descrição</label>
+                <textarea
+                  rows={3}
+                  className="input-form resize-none"
+                  placeholder="Descreva seu evento..."
+                  value={form.description}
+                  onChange={(e) => setField('description', e.target.value)}
                 />
-                {fieldErrors.eventEndDate && <p className="mt-1.5 text-xs text-red-600">{fieldErrors.eventEndDate}</p>}
               </div>
-            </div>
 
-            {form.locationType !== 'online' && (
-              <div className="space-y-4">
-                <h3 className="font-semibold text-gray-700 flex items-center gap-2">
-                  <FaMapMarkerAlt className="text-[#00C2A8]" /> Local
-                </h3>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label-form">Nome do local</label>
-                  <input type="text" className="input-form" placeholder="Ex: Allianz Parque"
-                    value={form.venueName} onChange={(e) => setField('venueName', e.target.value)} />
+                  <label className="label-form">Categoria *</label>
+                  <select
+                    className="input-form"
+                    value={form.category}
+                    onChange={(e) => setField('category', e.target.value)}
+                  >
+                    {CATEGORIES.map((c) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
                 </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="label-form">CEP</label>
-                    <div className="relative">
-                      <input type="text" className="input-form" maxLength={9} placeholder="00000-000"
-                        value={form.zipcode}
-                        onChange={(e) => setField('zipcode', e.target.value)}
-                        onBlur={(e) => handleCepBlur(e.target.value)} />
-                      {cepLoading && (
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 flex items-center gap-1">
-                          <FaSearch className="animate-spin" /> buscando...
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="col-span-2">
-                    <label className="label-form">Endereço (preenchido pelo CEP)</label>
-                    <input type="text" className="input-form" placeholder="Rua, número"
-                      value={form.address} onChange={(e) => setField('address', e.target.value)} />
-                  </div>
-                </div>
-
                 <div>
-                  <label className="label-form">Complemento</label>
-                  <input type="text" className="input-form" placeholder="Apto, bloco, sala, etc."
-                    value={form.complement} onChange={(e) => setField('complement', e.target.value)} />
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="col-span-2">
-                    <label className="label-form">Cidade</label>
-                    <input type="text" className="input-form" value={form.city}
-                      onChange={(e) => setField('city', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="label-form">UF</label>
-                    <input type="text" maxLength={2} className="input-form uppercase" value={form.state}
-                      onChange={(e) => setField('state', e.target.value.toUpperCase())} />
-                  </div>
+                  <label className="label-form">Formato</label>
+                  <select
+                    className="input-form"
+                    value={form.locationType}
+                    onChange={(e) => setField('locationType', e.target.value)}
+                  >
+                    <option value="presencial">Presencial</option>
+                    <option value="online">Online</option>
+                    <option value="híbrido">Híbrido</option>
+                  </select>
                 </div>
               </div>
-            )}
 
-            {form.locationType !== 'presencial' && (
-              <div>
-                <label className="label-form">URL do evento online</label>
-                <input type="url" className="input-form" placeholder="https://..."
-                  value={form.onlineUrl} onChange={(e) => setField('onlineUrl', e.target.value)} />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label-form">Data de início *</label>
+                  <input
+                    type="datetime-local"
+                    className={`input-form ${fieldErrors.eventDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
+                    value={form.eventDate}
+                    onChange={(e) => setField('eventDate', e.target.value)}
+                  />
+                  {fieldErrors.eventDate && (
+                    <p className="mt-1.5 text-xs text-red-600">{fieldErrors.eventDate}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="label-form">Data de término</label>
+                  <input
+                    type="datetime-local"
+                    className={`input-form ${fieldErrors.eventEndDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
+                    value={form.eventEndDate}
+                    onChange={(e) => setField('eventEndDate', e.target.value)}
+                  />
+                  {fieldErrors.eventEndDate && (
+                    <p className="mt-1.5 text-xs text-red-600">{fieldErrors.eventEndDate}</p>
+                  )}
+                </div>
               </div>
-            )}
 
-            <div>
-              <label className="label-form">Capacidade máxima</label>
-              <input type="number" min="1" className="input-form" placeholder="Ex: 500"
-                value={form.maxAttendees} onChange={(e) => setField('maxAttendees', e.target.value)} />
-            </div>
-
-            {/* Upload de imagens */}
-            <div>
-              <label className="label-form flex items-center gap-2">
-                <FaImages className="text-[#00C2A8]" /> Imagens do evento (até 10)
-              </label>
-              <p className="text-xs text-gray-400 mb-3">A primeira imagem será usada como capa. Arraste ou clique para adicionar.</p>
-
-              <label className="block w-full border-2 border-dashed border-[#00C2A8]/40 rounded-xl p-6 text-center cursor-pointer hover:border-[#00C2A8] hover:bg-[#00C2A8]/5 transition-all">
-                <input type="file" accept="image/*" multiple className="hidden"
-                  onChange={(e) => handleImageFiles(e.target.files)} />
-                <FaImages className="text-3xl text-[#00C2A8]/50 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">Clique ou arraste imagens aqui</p>
-                <p className="text-xs text-gray-400 mt-1">PNG, JPG, WEBP • Máx. 5 MB por arquivo</p>
-              </label>
-
-              {imagePreviews.length > 0 && (
-                <div className="grid grid-cols-4 gap-3 mt-3">
-                  {imagePreviews.map((src, i) => (
-                    <div key={i} className="relative group">
-                      {i === 0 && (
-                        <span className="absolute top-1 left-1 z-10 text-[10px] font-bold bg-[#00C2A8] text-white px-1.5 py-0.5 rounded">
-                          CAPA
-                        </span>
-                      )}
-                      <img src={src} alt="" className="w-full h-24 object-cover rounded-xl border border-gray-200" />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(i)}
-                        className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <FaTimes className="text-xs" />
-                      </button>
-                    </div>
-                  ))}
+              {form.locationType !== 'presencial' && (
+                <div>
+                  <label className="label-form">URL do evento online</label>
+                  <input
+                    type="url"
+                    className="input-form"
+                    placeholder="https://..."
+                    value={form.onlineUrl}
+                    onChange={(e) => setField('onlineUrl', e.target.value)}
+                  />
                 </div>
               )}
+
+              <div>
+                <label className="label-form">Capacidade máxima</label>
+                <input
+                  type="number"
+                  min="1"
+                  className="input-form"
+                  placeholder="Ex: 500"
+                  value={form.maxAttendees}
+                  onChange={(e) => setField('maxAttendees', e.target.value)}
+                />
+              </div>
+
+              <div className="flex items-center gap-3 p-4 bg-[#00C2A8]/5 rounded-xl border border-[#00C2A8]/20">
+                <input
+                  type="checkbox"
+                  id="publish"
+                  checked={form.isPublished}
+                  onChange={(e) => setField('isPublished', e.target.checked)}
+                  className="w-4 h-4 accent-[#00C2A8]"
+                />
+                <label htmlFor="publish" className="text-sm font-medium text-gray-700 cursor-pointer">
+                  Publicar imediatamente (visível para todos)
+                </label>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => router.push('/organizer/dashboard')}
+                  className="flex-1 py-3.5 border border-gray-300 text-gray-700 font-bold rounded-xl hover:border-gray-400 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex-1 py-3.5 text-white font-bold rounded-xl transition-all hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2"
+                  style={{ backgroundColor: '#00C2A8' }}
+                >
+                  <FaSave />
+                  {saving ? 'Salvando...' : 'Salvar Alterações'}
+                </button>
+              </div>
             </div>
 
-            <div className="flex items-center gap-3 p-4 bg-[#00C2A8]/5 rounded-xl border border-[#00C2A8]/20">
-              <input type="checkbox" id="publish" checked={form.isPublished}
-                onChange={(e) => setField('isPublished', e.target.checked)}
-                className="w-4 h-4 accent-[#00C2A8]" />
-              <label htmlFor="publish" className="text-sm font-medium text-gray-700 cursor-pointer">
-                Publicar imediatamente (visível para todos)
-              </label>
-            </div>
+            {/* Coluna direita — local + imagens */}
+            <div className="space-y-6">
+              {form.locationType !== 'online' && (
+                <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                    <FaMapMarkerAlt className="text-[#00C2A8]" /> Local
+                  </h3>
 
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => router.push('/organizer/dashboard')}
-                className="flex-1 py-3.5 border border-gray-300 text-gray-700 font-bold rounded-xl hover:border-gray-400 transition-all"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex-1 py-3.5 text-white font-bold rounded-xl transition-all hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2"
-                style={{ backgroundColor: '#00C2A8' }}
-              >
-                <FaSave />
-                {saving ? 'Salvando...' : 'Salvar Alterações'}
-              </button>
+                  <div>
+                    <label className="label-form">Nome do local</label>
+                    <input
+                      type="text"
+                      className="input-form"
+                      placeholder="Ex: Allianz Parque"
+                      value={form.venueName}
+                      onChange={(e) => setField('venueName', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="label-form">CEP</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          className="input-form"
+                          maxLength={9}
+                          placeholder="00000-000"
+                          value={form.zipcode}
+                          onChange={(e) => setField('zipcode', e.target.value)}
+                          onBlur={(e) => handleCepBlur(e.target.value)}
+                        />
+                        {cepLoading && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 flex items-center gap-1">
+                            <FaSearch className="animate-spin" /> buscando...
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="label-form">Endereço</label>
+                      <input
+                        type="text"
+                        className="input-form"
+                        placeholder="Rua, número"
+                        value={form.address}
+                        onChange={(e) => setField('address', e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="label-form">Complemento</label>
+                    <input
+                      type="text"
+                      className="input-form"
+                      placeholder="Apto, bloco, sala, etc."
+                      value={form.complement}
+                      onChange={(e) => setField('complement', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-2">
+                      <label className="label-form">Cidade</label>
+                      <input
+                        type="text"
+                        className="input-form"
+                        value={form.city}
+                        onChange={(e) => setField('city', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="label-form">UF</label>
+                      <input
+                        type="text"
+                        maxLength={2}
+                        className="input-form uppercase"
+                        value={form.state}
+                        onChange={(e) => setField('state', e.target.value.toUpperCase())}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Imagens */}
+              <div className="bg-white rounded-2xl shadow-sm p-6 space-y-3">
+                <label className="label-form flex items-center gap-2 !mb-0">
+                  <FaImages className="text-[#00C2A8]" /> Imagens do evento (até 10)
+                </label>
+                <p className="text-xs text-gray-400">A primeira imagem será usada como capa.</p>
+
+                <label className="block w-full border-2 border-dashed border-[#00C2A8]/40 rounded-xl p-5 text-center cursor-pointer hover:border-[#00C2A8] hover:bg-[#00C2A8]/5 transition-all">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => handleImageFiles(e.target.files)}
+                  />
+                  <FaImages className="text-2xl text-[#00C2A8]/50 mx-auto mb-1.5" />
+                  <p className="text-sm text-gray-500">Clique ou arraste imagens aqui</p>
+                  <p className="text-xs text-gray-400 mt-0.5">PNG, JPG, WEBP • Máx. 5 MB</p>
+                </label>
+
+                {imagePreviews.length > 0 && (
+                  <div className="grid grid-cols-4 gap-2">
+                    {imagePreviews.map((src, i) => (
+                      <div key={i} className="relative group">
+                        {i === 0 && (
+                          <span className="absolute top-1 left-1 z-10 text-[10px] font-bold bg-[#00C2A8] text-white px-1.5 py-0.5 rounded">
+                            CAPA
+                          </span>
+                        )}
+                        <img
+                          src={src}
+                          alt=""
+                          className="w-full h-20 object-cover rounded-xl border border-gray-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(i)}
+                          className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <FaTimes className="text-xs" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
-
     </DashboardLayout>
   );
 }

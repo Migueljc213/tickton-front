@@ -104,12 +104,9 @@ export default function FeaturesPage() {
             >
               Criar evento agora
             </Link>
-            <Link
-              href="/organizer/pricing"
-              className="px-8 py-3 font-semibold rounded-xl border-2 border-[#00C2A8] text-[#00C2A8] hover:bg-[#00C2A8]/5 transition-colors"
-            >
-              Ver preços
-            </Link>
+            <span className="text-sm text-white/70">
+              Gratuito · apenas 7% por ingresso vendido
+            </span>
           </div>
         </div>
       </div>

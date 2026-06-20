@@ -182,8 +182,8 @@ export default function Home() {
         <div className="absolute bottom-16 right-8 w-[360px] h-[360px] bg-light-green/8 rounded-full blur-[100px] animate-float-slow pointer-events-none" />
         <div className="absolute top-1/2 left-1/3 w-[600px] h-[600px] bg-turquoise/5 rounded-full blur-[160px] -translate-y-1/2 pointer-events-none" />
 
-        <div className="container mx-auto px-4 relative z-10 py-24">
-          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
+        <div className="container mx-auto px-4 relative z-10 py-12 md:py-24">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-14 items-center">
 
             {/* ---- Conteúdo principal ---- */}
             <div className="text-left">
@@ -276,7 +276,7 @@ export default function Home() {
               </div>
 
               {/* Badge de segurança */}
-              <div className="absolute top-44 right-4 glass-white rounded-2xl px-4 py-3 flex items-center gap-3 shadow-lg" style={{ animation: "float 6s ease-in-out 1s infinite" }}>
+              <div className="absolute top-44 right-4 glass-white rounded-2xl px-4 py-3 hidden xl:flex items-center gap-3 shadow-lg" style={{ animation: "float 6s ease-in-out 1s infinite" }}>
                 <div className="w-9 h-9 bg-green-100 rounded-full flex items-center justify-center">
                   <FaCheckCircle className="text-green-500 text-base" />
                 </div>
@@ -287,7 +287,7 @@ export default function Home() {
               </div>
 
               {/* Badge de venda rápida */}
-              <div className="absolute top-4 right-8 glass-white rounded-2xl px-4 py-3 flex items-center gap-3 shadow-lg" style={{ animation: "float 4s ease-in-out 3s infinite" }}>
+              <div className="absolute top-4 right-8 glass-white rounded-2xl px-4 py-3 hidden xl:flex items-center gap-3 shadow-lg" style={{ animation: "float 4s ease-in-out 3s infinite" }}>
                 <div className="w-9 h-9 bg-turquoise/10 rounded-full flex items-center justify-center">
                   <FaBolt className="text-turquoise text-base" />
                 </div>
@@ -300,7 +300,7 @@ export default function Home() {
           </div>
 
           {/* ---- Stats ---- */}
-          <div className="max-w-7xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-4 mt-20 animate-fade-in-up animation-delay-600">
+          <div className="max-w-7xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mt-10 md:mt-20 animate-fade-in-up animation-delay-600">
             {STATS.map((stat, i) => (
               <div key={i} className="glass rounded-2xl px-5 py-5 text-center">
                 <div className="text-3xl mb-2">{stat.icon}</div>
@@ -346,7 +346,7 @@ export default function Home() {
       </section>
 
       {/* ========================= COMO FUNCIONA ========================= */}
-      <section className="py-20 bg-white">
+      <section className="py-12 md:py-20 bg-white">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <span className="section-label">Simples assim</span>
@@ -425,7 +425,7 @@ export default function Home() {
       </section>
 
       {/* ========================= PARA ORGANIZADORES ========================= */}
-      <section className="py-24 bg-white overflow-hidden">
+      <section className="py-14 md:py-24 bg-white overflow-hidden">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center max-w-6xl mx-auto">
 
@@ -491,8 +491,8 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Floating badges */}
-              <div className="absolute -top-5 -right-5 glass-white rounded-2xl px-4 py-3 flex items-center gap-3 shadow-xl">
+              {/* Floating badges — hidden on small screens to avoid overflow */}
+              <div className="hidden sm:flex absolute -top-5 -right-5 glass-white rounded-2xl px-4 py-3 items-center gap-3 shadow-xl">
                 <span className="text-2xl">🚀</span>
                 <div>
                   <p className="font-bold text-gray-900 text-sm">Setup em 5 min</p>
@@ -500,7 +500,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="absolute -bottom-5 -left-5 glass-white rounded-2xl px-4 py-3 flex items-center gap-3 shadow-xl">
+              <div className="hidden sm:flex absolute -bottom-5 -left-5 glass-white rounded-2xl px-4 py-3 items-center gap-3 shadow-xl">
                 <span className="text-2xl">💰</span>
                 <div>
                   <p className="font-bold text-gray-900 text-sm">0% para gratuitos</p>
@@ -534,7 +534,7 @@ export default function Home() {
                 ))}
               </div>
 
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap items-center gap-4">
                 <Link href="/organizer">
                   <Button
                     size="lg"
@@ -545,14 +545,9 @@ export default function Home() {
                     <FaArrowRight className="ml-2 text-sm" />
                   </Button>
                 </Link>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="border-gray-200 px-8 font-bold rounded-xl transition-all"
-                  style={{ color: '#374151', borderColor: '#E5E7EB' }}
-                >
-                  Ver planos e preços
-                </Button>
+                <span className="text-sm text-gray-500 font-medium">
+                  Gratuito para criar · apenas <strong className="text-gray-700">7% por ingresso vendido</strong>
+                </span>
               </div>
             </div>
           </div>
@@ -560,9 +555,9 @@ export default function Home() {
       </section>
 
       {/* ========================= FEATURES RÁPIDAS ========================= */}
-      <section className="py-16 bg-gray-50 border-y border-gray-100">
+      <section className="py-12 md:py-16 bg-gray-50 border-y border-gray-100">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-5xl mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 max-w-5xl mx-auto">
             {[
               { icon: <FaCalendarAlt className="text-turquoise text-2xl" />, title: "Fácil de Criar", desc: "Evento online em menos de 5 minutos" },
               { icon: <FaTicketAlt className="text-turquoise text-2xl" />,   title: "Ingresso Digital", desc: "QR Code seguro, sem papel" },
@@ -582,7 +577,7 @@ export default function Home() {
       </section>
 
       {/* ========================= CTA FINAL ========================= */}
-      <section className="py-28 hero-gradient relative overflow-hidden">
+      <section className="py-16 md:py-28 hero-gradient relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-12 left-24 w-72 h-72 bg-turquoise/10 rounded-full blur-3xl" />
           <div className="absolute bottom-12 right-24 w-96 h-96 bg-light-green/8 rounded-full blur-3xl" />

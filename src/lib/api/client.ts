@@ -185,6 +185,22 @@ class ApiClient {
   put<T>(endpoint: string, body?: unknown, options?: Omit<RequestOptions, 'method'>): Promise<T> {
     return this.request<T>(endpoint, { ...options, method: 'PUT', body });
   }
+
+  async postForm<T>(endpoint: string, formData: FormData): Promise<T> {
+    const token = this.getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${this.baseURL}${endpoint}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: res.statusText }));
+      throw new Error(err.message ?? 'Erro no upload');
+    }
+    return res.json();
+  }
 }
 
 export const apiClient = new ApiClient(API_CONFIG.baseURL);

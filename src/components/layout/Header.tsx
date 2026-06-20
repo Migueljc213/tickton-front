@@ -124,7 +124,7 @@ export default function Header() {
       <header
         className={`sticky top-0 z-50 transition-all duration-300 ${
           scrolled || !isHeroPage
-            ? 'bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100'
+            ? 'bg-white shadow-sm border-b border-gray-100'
             : 'bg-transparent border-b border-white/10'
         }`}
       >

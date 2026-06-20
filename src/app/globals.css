@@ -148,6 +148,7 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
@@ -156,6 +157,7 @@ body {
   font-feature-settings: "rlig" 1, "calt" 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
 /* ===== SCROLLBAR ===== */
@@ -636,3 +638,33 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
 }
 
 .feature-icon:hover { transform: scale(1.05) rotate(3deg); }
+
+/* ===== CATEGORY PILL RESPONSIVE ===== */
+@media (max-width: 480px) {
+  .category-pill {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+  }
+}
+
+/* ===== MOBILE SAFE AREA ===== */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ===== TOUCH TARGET ===== */
+@media (max-width: 768px) {
+  button, a {
+    min-height: 44px;
+  }
+  /* Exceções: ícones pequenos dentro de outros elementos */
+  button button, a a, td button, li a {
+    min-height: unset;
+  }
+}
+
+/* ===== TOAST ===== */
+@keyframes toast-in {
+  from { transform: translateX(110%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
