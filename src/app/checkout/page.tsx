@@ -474,7 +474,7 @@ function CheckoutContent() {
                   </span>
                 </div>
                 {i < STEPS.length - 1 && (
-                  <div className={`w-12 h-0.5 mx-1 ${i < step ? 'bg-[#00C2A8]' : 'bg-gray-200'}`} />
+                  <div className={`w-4 sm:w-12 h-0.5 mx-0.5 sm:mx-1 ${i < step ? 'bg-[#00C2A8]' : 'bg-gray-200'}`} />
                 )}
               </div>
             ))}

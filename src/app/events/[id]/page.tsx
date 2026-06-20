@@ -28,6 +28,9 @@ import {
 } from 'react-icons/fa';
 import { useEvent, useTickets } from '@/hooks';
 import { useAuth } from '@/hooks';
+import { storage } from '@/lib/utils/storage';
+import { apiClient } from '@/lib/api';
+import LoginModal from '@/components/auth/LoginModal';
 import { formatPrice, formatLongDate, formatTime } from '@/lib/utils/format';
 import type { Ticket } from '@/types/api';
 import EventWall from '@/components/events/EventWall';
@@ -272,13 +275,13 @@ function ImageCarousel({ images, title, gradient }: { images: string[]; title: s
       {/* Setas */}
       <button
         onClick={(e) => { e.stopPropagation(); prev(); }}
-        className="absolute left-14 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 text-white flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 transition-all hover:bg-black/60 backdrop-blur-sm"
+        className="absolute left-3 sm:left-14 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/40 text-white flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 transition-all hover:bg-black/60 backdrop-blur-sm"
       >
         <FaChevronLeft />
       </button>
       <button
         onClick={(e) => { e.stopPropagation(); next(); }}
-        className="absolute right-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 text-white flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 transition-all hover:bg-black/60 backdrop-blur-sm"
+        className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/40 text-white flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 transition-all hover:bg-black/60 backdrop-blur-sm"
       >
         <FaChevronRight />
       </button>
@@ -366,6 +369,8 @@ export default function EventDetailsPage() {
   const [ticketQuantity, setTicketQuantity] = useState(1);
   const [liked, setLiked] = useState(false);
   const [organizer, setOrganizer] = useState<OrganizerInfo | null>(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [organizerWarning, setOrganizerWarning] = useState(false);
 
   useEffect(() => {
     if (eventId) fetchTickets();
@@ -382,9 +387,33 @@ export default function EventDetailsPage() {
   const getAvailable = (ticket: Ticket) => ticket.quantityAvailable - ticket.quantitySold;
   const calculateTotal = () => selectedTicket ? Number(selectedTicket.price) * ticketQuantity : 0;
 
-  const handleBuy = () => {
+  const proceedToCheckout = () => {
     if (!selectedTicket || !eventId) return;
     router.push(`${CHECKOUT_PATH}?eventId=${eventId}&ticketId=${selectedTicket.id}&quantity=${ticketQuantity}`);
+  };
+
+  const handleBuy = () => {
+    if (!selectedTicket || !eventId) return;
+    const token = apiClient.getToken();
+    if (!token) {
+      setShowLoginModal(true);
+      return;
+    }
+    const role = storage.getUserRole();
+    if (role === 'organizer') {
+      setOrganizerWarning(true);
+      return;
+    }
+    proceedToCheckout();
+  };
+
+  const handleLoginSuccess = (role: string) => {
+    setShowLoginModal(false);
+    if (role === 'organizer') {
+      setOrganizerWarning(true);
+      return;
+    }
+    proceedToCheckout();
   };
 
   const handleSelectTicket = (ticket: Ticket) => {
@@ -420,8 +449,44 @@ export default function EventDetailsPage() {
   const venueInfo  = event.venueName || event.address || 'Local a definir';
   const locationInfo = [venueInfo, event.city, event.state].filter(Boolean).join(', ');
 
+  const endRef = event.eventEndDate ? new Date(event.eventEndDate) : new Date(event.eventDate);
+  const isEventEnded = endRef < new Date();
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Modal de login */}
+      {showLoginModal && (
+        <LoginModal
+          onClose={() => setShowLoginModal(false)}
+          onSuccess={handleLoginSuccess}
+          eventTitle={event.title}
+        />
+      )}
+
+      {/* Aviso conta de organizador */}
+      {organizerWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setOrganizerWarning(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 text-center" onClick={e => e.stopPropagation()}>
+            <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl">
+              🏢
+            </div>
+            <h3 className="font-black text-gray-900 text-xl mb-2">Conta de Organizador</h3>
+            <p className="text-gray-500 text-sm leading-relaxed mb-6">
+              Você está logado com uma conta de organizador. Contas de organizador não podem comprar ingressos.
+              <br /><br />
+              Para comprar, crie uma conta de participante ou faça login com outra conta.
+            </p>
+            <button
+              onClick={() => setOrganizerWarning(false)}
+              className="w-full py-3 rounded-xl font-bold text-white text-sm transition-all hover:opacity-90"
+              style={{ background: 'linear-gradient(135deg,#003B4A,#00C2A8)' }}
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ========================= HERO DO EVENTO ========================= */}
       <div className="relative h-[52vh] min-h-[320px] overflow-hidden">
         {images.length > 0 ? (
@@ -434,6 +499,16 @@ export default function EventDetailsPage() {
 
         {/* Overlay gradiente */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+
+        {/* Badge encerrado */}
+        {isEventEnded && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+            <div className="bg-black/60 backdrop-blur-sm border border-white/20 text-white font-black text-xl sm:text-2xl px-8 py-4 rounded-2xl tracking-widest uppercase flex items-center gap-3">
+              <span>🏁</span>
+              <span>Evento Encerrado</span>
+            </div>
+          </div>
+        )}
 
         {/* Botão voltar */}
         <button
@@ -634,6 +709,24 @@ export default function EventDetailsPage() {
           {/* ---- Sidebar de ingressos ---- */}
           <div>
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sticky top-20">
+              {isEventEnded ? (
+                <div className="text-center py-10 space-y-4">
+                  <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto text-3xl">
+                    🏁
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-800 text-lg mb-1">Evento Encerrado</h3>
+                    <p className="text-gray-500 text-sm leading-relaxed">
+                      Este evento já foi realizado.<br />A venda de ingressos está encerrada.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 text-xs text-gray-400 pt-2 border-t border-gray-100">
+                    <FaCalendarAlt className="text-xs" />
+                    Realizado em {new Date(endRef).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                  </div>
+                </div>
+              ) : (
+              <>
               <h2 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-2">
                 <FaTicketAlt className="text-turquoise" />
                 Selecionar Ingresso
@@ -743,6 +836,8 @@ export default function EventDetailsPage() {
                     </div>
                   )}
                 </>
+              )}
+              </>
               )}
             </div>
           </div>

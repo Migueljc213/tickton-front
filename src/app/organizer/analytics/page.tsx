@@ -178,7 +178,11 @@ export default function AnalyticsPage() {
         const myOrg = Array.isArray(orgs) ? orgs.find(o => o.userId === userId) : null;
         if (!myOrg) return;
         const response = await eventsService.getEventsByOrganizer(myOrg.id);
-        setMyEvents(response.events);
+        const evts = response.events;
+        setMyEvents(evts);
+        if (evts.length > 0) {
+          setSelectedEventId(evts[evts.length - 1].id);
+        }
       } catch { /* ignora */ } finally {
         setEventsLoading(false);
       }

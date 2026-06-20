@@ -13,7 +13,7 @@ import { useEvents } from '@/hooks';
 import { formatDate } from '@/lib/utils/format';
 import type { Event } from '@/types/api';
 
-type SortMode = 'organizer' | 'date_asc' | 'date_desc';
+type SortMode = 'upcoming' | 'organizer' | 'date_asc' | 'date_desc';
 
 const CATEGORIES = [
   { value: '',           label: 'Todos',       icon: '✨' },
@@ -61,6 +61,16 @@ const CATEGORY_BADGES: Record<string, string> = {
 
 /* Ordena eventos pelo critério selecionado */
 function applySortMode(events: Event[], mode: SortMode): Event[] {
+  if (mode === 'upcoming') {
+    const now = Date.now();
+    const upcoming = events
+      .filter(e => new Date(e.eventDate).getTime() >= now)
+      .sort((a, b) => new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime());
+    const past = events
+      .filter(e => new Date(e.eventDate).getTime() < now)
+      .sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime());
+    return [...upcoming, ...past];
+  }
   if (mode === 'organizer') {
     const counts: Record<number, number> = {};
     events.forEach((e) => { counts[e.organizerId] = (counts[e.organizerId] ?? 0) + 1; });
@@ -110,13 +120,15 @@ function EventsContent() {
   const [selectedStartDate, setSelectedStartDate] = useState('');
   const [selectedEndDate, setSelectedEndDate]     = useState('');
   const [showFilters, setShowFilters]       = useState(false);
-  const [sortMode, setSortMode]             = useState<SortMode>('organizer');
+  const [sortMode, setSortMode]             = useState<SortMode>('upcoming');
+
+  const qParam = searchParams.get('q');
 
   useEffect(() => {
-    const q = searchParams.get('q');
-    searchEvents({ title: q || undefined, isPublished: true });
+    if (qParam) setSearchTerm(qParam);
+    searchEvents({ title: qParam || undefined, isPublished: true });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [qParam]);
 
   const getCategoryIcon  = (cat: string) => CATEGORIES.find((c) => c.value === cat)?.icon  ?? '🎊';
   const getCategoryLabel = (cat: string) => CATEGORIES.find((c) => c.value === cat)?.label ?? 'Outros';
@@ -156,7 +168,7 @@ function EventsContent() {
     setSelectedState('');
     setSelectedStartDate('');
     setSelectedEndDate('');
-    setSortMode('organizer');
+    setSortMode('upcoming');
     searchEvents({ isPublished: true });
   };
 
@@ -168,6 +180,7 @@ function EventsContent() {
   const eventsCount = sortedEvents.length;
 
   const SORT_OPTIONS: { mode: SortMode; label: string; icon: React.ReactNode }[] = [
+    { mode: 'upcoming',  label: 'Mais próximos',  icon: <FaCalendarAlt className="text-xs" /> },
     { mode: 'organizer', label: 'Mais eventos',   icon: <FaMedal className="text-xs" /> },
     { mode: 'date_asc',  label: 'Data ↑',         icon: <FaSortAmountUp className="text-xs" /> },
     { mode: 'date_desc', label: 'Data ↓',         icon: <FaSortAmountDown className="text-xs" /> },
@@ -176,12 +189,12 @@ function EventsContent() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Cabeçalho */}
-      <div className="bg-gradient-to-br from-dark-blue to-[#005166] py-12">
+      <div className="bg-gradient-to-br from-dark-blue to-[#005166] py-8 sm:py-12">
         <div className="container mx-auto px-4">
           <div className="max-w-3xl">
             <span className="section-label text-turquoise">Explorar</span>
-            <h1 className="text-4xl font-black text-white mt-2 mb-3">Descobrir Eventos</h1>
-            <p className="text-white/65 text-lg">
+            <h1 className="text-2xl sm:text-4xl font-black text-white mt-2 mb-2 sm:mb-3">Descobrir Eventos</h1>
+            <p className="text-white/65 text-base sm:text-lg">
               Encontre eventos incríveis na sua cidade ou explore novas experiências.
             </p>
           </div>
@@ -390,10 +403,12 @@ function EventsContent() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {sortedEvents.map((event) => {
               const coverImage = parseCoverImage(event.bannerUrl);
+              const endRef = event.eventEndDate ? new Date(event.eventEndDate) : new Date(event.eventDate);
+              const isEnded = endRef < new Date();
               return (
                 <Card
                   key={event.id}
-                  className="group cursor-pointer border border-gray-100 shadow-sm hover:shadow-xl bg-white overflow-hidden rounded-2xl transition-all duration-300 hover:-translate-y-1"
+                  className={`group cursor-pointer border border-gray-100 shadow-sm bg-white overflow-hidden rounded-2xl transition-all duration-300 ${isEnded ? 'opacity-70' : 'hover:shadow-xl hover:-translate-y-1'}`}
                   onClick={() => router.push(`/events/${event.id}`)}
                 >
                   <div className="relative aspect-video overflow-hidden">
@@ -401,29 +416,33 @@ function EventsContent() {
                       <img
                         src={coverImage}
                         alt={event.title}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        className={`w-full h-full object-cover transition-transform duration-500 ${isEnded ? 'grayscale' : 'group-hover:scale-105'}`}
                       />
                     ) : (
-                      <div className={`w-full h-full bg-gradient-to-br ${CATEGORY_GRADIENTS[event.category] ?? CATEGORY_GRADIENTS.other} flex items-center justify-center text-5xl transition-transform duration-500 group-hover:scale-105`}>
+                      <div className={`w-full h-full bg-gradient-to-br ${isEnded ? 'from-gray-400 to-gray-500' : (CATEGORY_GRADIENTS[event.category] ?? CATEGORY_GRADIENTS.other)} flex items-center justify-center text-5xl transition-transform duration-500 ${!isEnded && 'group-hover:scale-105'}`}>
                         {getCategoryIcon(event.category)}
                       </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
 
-                    {event.isPublished && (
+                    {isEnded ? (
+                      <span className="absolute top-3 left-3 bg-gray-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                        🏁 Encerrado
+                      </span>
+                    ) : event.isPublished ? (
                       <span className="absolute top-3 left-3 bg-white/90 text-turquoise text-[10px] font-bold px-2.5 py-1 rounded-full">
                         ✓ Publicado
                       </span>
-                    )}
+                    ) : null}
                   </div>
 
                   <CardContent className="p-5">
                     <div className="space-y-3">
-                      <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${CATEGORY_BADGES[event.category] ?? 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${isEnded ? 'bg-gray-100 text-gray-500' : (CATEGORY_BADGES[event.category] ?? 'bg-gray-100 text-gray-600')}`}>
                         {getCategoryIcon(event.category)} {getCategoryLabel(event.category)}
                       </span>
 
-                      <h3 className="font-bold text-gray-900 text-base leading-tight line-clamp-2 group-hover:text-turquoise transition-colors">
+                      <h3 className={`font-bold text-base leading-tight line-clamp-2 transition-colors ${isEnded ? 'text-gray-500' : 'text-gray-900 group-hover:text-turquoise'}`}>
                         {event.title}
                       </h3>
 
@@ -444,10 +463,10 @@ function EventsContent() {
                       </div>
 
                       <Button
-                        className="w-full bg-turquoise hover:bg-turquoise-600 text-white font-bold py-2.5 rounded-xl text-sm shadow-sm hover:shadow-md hover:shadow-turquoise/20 transition-all"
+                        className={`w-full font-bold py-2.5 rounded-xl text-sm transition-all ${isEnded ? 'bg-gray-200 text-gray-500 hover:bg-gray-300 cursor-default' : 'bg-turquoise hover:bg-turquoise-600 text-white shadow-sm hover:shadow-md hover:shadow-turquoise/20'}`}
                         onClick={(e) => { e.stopPropagation(); router.push(`/events/${event.id}`); }}
                       >
-                        Ver Detalhes
+                        {isEnded ? '🏁 Ver Evento Encerrado' : 'Ver Detalhes'}
                       </Button>
                     </div>
                   </CardContent>
