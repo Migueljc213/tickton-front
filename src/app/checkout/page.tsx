@@ -61,12 +61,33 @@ function CheckoutContent() {
   const [step, setStep] = useState(0);
   const [selections, setSelections] = useState<TicketSelection[]>([]);
   const [demographics, setDemographics] = useState<DemographicData>({ gender: '', age: '', neighborhood: '' });
+  const [demographicsAlreadySaved, setDemographicsAlreadySaved] = useState(false);
+  const [userId, setUserId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (eventId) fetchTickets();
   }, [eventId, fetchTickets]);
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    fetch(`${API_URL}/users/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((user) => {
+        setUserId(user.id);
+        if (user.gender || user.age || user.neighborhood) {
+          setDemographics({
+            gender: user.gender ?? '',
+            age: user.age ? String(user.age) : '',
+            neighborhood: user.neighborhood ?? '',
+          });
+          setDemographicsAlreadySaved(true);
+        }
+      })
+      .catch(() => {});
+  }, [getToken]);
 
   const PLATFORM_FEE_RATE = 0.07;
   const subtotal = selections.reduce((s, x) => s + x.totalPrice, 0);
@@ -151,7 +172,21 @@ function CheckoutContent() {
 
       const data = await res.json();
 
-      // Fluxo sem pagamento (BYPASS_PAYMENT ativo no backend)
+      // Salva dados demográficos no perfil do usuário (apenas se não estavam salvos)
+      if (!demographicsAlreadySaved && userId && (demographics.gender || demographics.age || demographics.neighborhood)) {
+        const token = getToken();
+        fetch(`${API_URL}/users/${userId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            ...(demographics.gender ? { gender: demographics.gender } : {}),
+            ...(demographics.age ? { age: parseInt(demographics.age, 10) } : {}),
+            ...(demographics.neighborhood ? { neighborhood: demographics.neighborhood } : {}),
+          }),
+        }).catch(() => {});
+      }
+
+      // Fluxo sem pagamento (ingressos gratuitos)
       if (data.bypass || !data.initPoint) {
         router.push(`/checkout/success?order=${data.orderId}`);
         return;
@@ -497,12 +532,12 @@ function CheckoutContent() {
             {step === 0 && (
               <div className="mt-5">
                 <button
-                  onClick={() => setStep(1)}
+                  onClick={() => setStep(demographicsAlreadySaved ? 2 : 1)}
                   disabled={selections.length === 0}
                   className="w-full py-4 rounded-xl font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-40 text-base"
                   style={{ backgroundColor: '#00C2A8' }}
                 >
-                  Continuar → Seus Dados
+                  {demographicsAlreadySaved ? 'Continuar → Revisão' : 'Continuar → Seus Dados'}
                 </button>
               </div>
             )}
