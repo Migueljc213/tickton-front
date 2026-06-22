@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import {
   FaCalendarAlt,
@@ -10,6 +10,9 @@ import {
   FaSearch,
   FaImages,
   FaTimes,
+  FaTicketAlt,
+  FaPlus,
+  FaTrash,
 } from 'react-icons/fa';
 import { useAuth } from '@/hooks';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -29,15 +32,24 @@ const CATEGORIES = [
   { value: 'other', label: 'Outros' },
 ];
 
-function toLocalDatetime(iso: string | null | undefined) {
-  if (!iso) return '';
-  return iso.slice(0, 16);
+interface LoteEdit {
+  id?: number;
+  name: string;
+  description: string;
+  price: string;
+  quantityAvailable: string;
+  ticketType: 'paid' | 'free';
+  saleStartDate: string;
+  saleEndDate: string;
+  isNew?: boolean;
+  toDelete?: boolean;
 }
 
-type EditFieldErrors = {
-  title?: string;
-  eventDate?: string;
-  eventEndDate?: string;
+type EditFieldErrors = { title?: string; eventDate?: string; eventEndDate?: string };
+
+const EMPTY_LOTE: LoteEdit = {
+  name: '', description: '', price: '', quantityAvailable: '',
+  ticketType: 'paid', saleStartDate: '', saleEndDate: '', isNew: true,
 };
 
 const DT_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
@@ -48,6 +60,11 @@ function validateDatetime(value: string): 'missing' | 'missing-time' | 'invalid'
   if (DT_REGEX.test(value)) return isNaN(new Date(value).getTime()) ? 'invalid' : 'valid';
   if (DATE_ONLY_REGEX.test(value)) return 'missing-time';
   return 'invalid';
+}
+
+function toLocalDatetime(iso: string | null | undefined) {
+  if (!iso) return '';
+  return iso.slice(0, 16);
 }
 
 const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -63,92 +80,103 @@ export default function EditEventPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<EditFieldErrors>({});
-
   const [cepLoading, setCepLoading] = useState(false);
+  const [uploadingImg, setUploadingImg] = useState(false);
+
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [existingImageUrls, setExistingImageUrls] = useState<string[]>([]);
+
+  const [lotes, setLotes] = useState<LoteEdit[]>([]);
 
   const [form, setForm] = useState({
-    title: '',
-    description: '',
-    category: 'music',
-    eventDate: '',
-    eventEndDate: '',
+    title: '', description: '', category: 'music',
+    eventDate: '', eventEndDate: '',
     locationType: 'presencial',
-    venueName: '',
-    address: '',
-    complement: '',
-    city: '',
-    state: '',
-    zipcode: '',
-    onlineUrl: '',
-    bannerUrl: '',
-    imageUrls: [] as string[],
-    maxAttendees: '',
-    isPublished: false,
+    venueName: '', address: '', complement: '',
+    city: '', state: '', zipcode: '', onlineUrl: '',
+    maxAttendees: '', isPublished: false,
   });
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const token = getToken();
-        const res = await fetch(`${API_URL}/events/${eventId}`, {
+  const loadEvent = useCallback(async () => {
+    try {
+      const token = getToken();
+      const [evRes, tkRes] = await Promise.all([
+        fetch(`${API_URL}/events/${eventId}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!res.ok) throw new Error('Evento não encontrado');
-        const data = await res.json();
-        const ev = data.event ?? data;
-        const imgs: string[] = (() => {
-          if (ev.imageUrls) {
-            return typeof ev.imageUrls === 'string' ? JSON.parse(ev.imageUrls) : ev.imageUrls;
-          }
-          if (ev.bannerUrl) {
-            try {
-              const p = JSON.parse(ev.bannerUrl);
-              if (Array.isArray(p)) return p;
-            } catch {}
-            return [ev.bannerUrl];
-          }
-          return [];
-        })();
-        setForm({
-          title: ev.title ?? '',
-          description: ev.description ?? '',
-          category: ev.category ?? 'music',
-          eventDate: toLocalDatetime(ev.eventDate),
-          eventEndDate: toLocalDatetime(ev.eventEndDate),
-          locationType: ev.locationType ?? 'presencial',
-          venueName: ev.venueName ?? '',
-          address: ev.address ?? '',
-          complement: ev.complement ?? '',
-          city: ev.city ?? '',
-          state: ev.state ?? '',
-          zipcode: ev.zipcode ?? '',
-          onlineUrl: ev.onlineUrl ?? '',
-          bannerUrl: ev.bannerUrl ?? '',
-          imageUrls: imgs,
-          maxAttendees: ev.maxAttendees != null ? String(ev.maxAttendees) : '',
-          isPublished: ev.isPublished ?? false,
-        });
-        setImagePreviews(imgs);
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : 'Erro ao carregar evento');
-      } finally {
-        setLoading(false);
+        }),
+        fetch(`${API_URL}/tickets/event/${eventId}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }),
+      ]);
+
+      if (!evRes.ok) throw new Error('Evento não encontrado');
+      const data = await evRes.json();
+      const ev = data.event ?? data;
+
+      const imgs: string[] = (() => {
+        if (ev.bannerUrl) {
+          try { const p = JSON.parse(ev.bannerUrl); if (Array.isArray(p)) return p; } catch {}
+          return [ev.bannerUrl];
+        }
+        return [];
+      })();
+
+      setExistingImageUrls(imgs);
+      setImagePreviews(imgs);
+
+      setForm({
+        title: ev.title ?? '',
+        description: ev.description ?? '',
+        category: ev.category ?? 'music',
+        eventDate: toLocalDatetime(ev.eventDate),
+        eventEndDate: toLocalDatetime(ev.eventEndDate),
+        locationType: ev.locationType ?? 'presencial',
+        venueName: ev.venueName ?? '',
+        address: ev.address ?? '',
+        complement: ev.complement ?? '',
+        city: ev.city ?? '',
+        state: ev.state ?? '',
+        zipcode: ev.zipcode ?? '',
+        onlineUrl: ev.onlineUrl ?? '',
+        maxAttendees: ev.maxAttendees != null ? String(ev.maxAttendees) : '',
+        isPublished: ev.isPublished ?? false,
+      });
+
+      if (tkRes.ok) {
+        const tkData = await tkRes.json();
+        const tickets = tkData.tickets ?? tkData ?? [];
+        setLotes(
+          (Array.isArray(tickets) ? tickets : []).map((t: {
+            id: number; name: string; description: string; price: number;
+            quantityAvailable: number; ticketType: string;
+            saleStartDate?: string; saleEndDate?: string;
+          }) => ({
+            id: t.id,
+            name: t.name ?? '',
+            description: t.description ?? '',
+            price: t.price != null ? String(Math.round(t.price * 100)) : '',
+            quantityAvailable: t.quantityAvailable != null ? String(t.quantityAvailable) : '',
+            ticketType: (t.ticketType === 'free' ? 'free' : 'paid') as 'paid' | 'free',
+            saleStartDate: toLocalDatetime(t.saleStartDate),
+            saleEndDate: toLocalDatetime(t.saleEndDate),
+          }))
+        );
       }
-    };
-    load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao carregar evento');
+    } finally {
+      setLoading(false);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, getToken]);
 
-  const setField = (k: string, v: string | boolean | string[]) => {
+  useEffect(() => { loadEvent(); }, [loadEvent]);
+
+  const setField = (k: string, v: string | boolean) => {
     setForm((prev) => ({ ...prev, [k]: v }));
     if (k === 'title' || k === 'eventDate' || k === 'eventEndDate') {
-      setFieldErrors((prev) => {
-        const n = { ...prev };
-        delete n[k as keyof EditFieldErrors];
-        return n;
-      });
+      setFieldErrors((prev) => { const n = { ...prev }; delete n[k as keyof EditFieldErrors]; return n; });
     }
   };
 
@@ -167,46 +195,55 @@ export default function EditEventPage() {
           state: data.uf ?? prev.state,
         }));
       }
-    } catch {
-      /* ignora erro de CEP */
-    } finally {
-      setCepLoading(false);
-    }
+    } catch { /* ignora */ } finally { setCepLoading(false); }
   };
 
   const handleImageFiles = (files: FileList | null) => {
     if (!files) return;
-    const newFiles = Array.from(files).slice(0, 10 - imageFiles.length);
+    const newFiles = Array.from(files).slice(0, 10 - imageFiles.length - existingImageUrls.length);
     setImageFiles((prev) => [...prev, ...newFiles]);
     newFiles.forEach((f) => {
       const reader = new FileReader();
-      reader.onload = (e) =>
-        setImagePreviews((prev) => [...prev, e.target?.result as string]);
+      reader.onload = (e) => setImagePreviews((prev) => [...prev, e.target?.result as string]);
       reader.readAsDataURL(f);
     });
   };
 
   const removeImage = (idx: number) => {
-    const isExisting = idx < form.imageUrls.length && imageFiles.length === 0;
-    if (isExisting) {
-      setField('imageUrls', form.imageUrls.filter((_, i) => i !== idx));
+    if (idx < existingImageUrls.length) {
+      setExistingImageUrls((prev) => prev.filter((_, i) => i !== idx));
       setImagePreviews((prev) => prev.filter((_, i) => i !== idx));
     } else {
-      const fileIdx = idx - (form.imageUrls.length - imageFiles.length);
+      const fileIdx = idx - existingImageUrls.length;
       setImageFiles((prev) => prev.filter((_, i) => i !== fileIdx));
       setImagePreviews((prev) => prev.filter((_, i) => i !== idx));
     }
   };
 
+  const setLoteField = (idx: number, k: keyof LoteEdit, v: string) =>
+    setLotes((prev) => prev.map((l, i) => (i === idx ? { ...l, [k]: v } : l)));
+
+  const handlePriceInput = (idx: number, raw: string) => {
+    const digits = raw.replace(/\D/g, '');
+    setLoteField(idx, 'price', digits);
+  };
+
+  const addLote = () => setLotes((prev) => [...prev, { ...EMPTY_LOTE }]);
+  const markDelete = (idx: number) =>
+    setLotes((prev) => prev.map((l, i) => (i === idx ? { ...l, toDelete: true } : l)));
+
+  const formatPrice = (cents: string) => {
+    const n = parseInt(cents || '0', 10);
+    return (n / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
   const handleSave = async () => {
     const errs: EditFieldErrors = {};
     if (!form.title.trim()) errs.title = 'Título é obrigatório';
-
     const startStatus = validateDatetime(form.eventDate);
     if (startStatus === 'missing') errs.eventDate = 'Data de início é obrigatória';
     else if (startStatus === 'missing-time') errs.eventDate = 'Informe também o horário de início';
     else if (startStatus === 'invalid') errs.eventDate = 'Data de início inválida';
-
     if (form.eventEndDate) {
       const endStatus = validateDatetime(form.eventEndDate);
       if (endStatus === 'missing-time') errs.eventEndDate = 'Informe também o horário de término';
@@ -216,7 +253,6 @@ export default function EditEventPage() {
           errs.eventEndDate = 'A data de término deve ser posterior à data de início';
       }
     }
-
     if (Object.keys(errs).length > 0) {
       setFieldErrors(errs);
       toast.error(Object.values(errs)[0]!);
@@ -224,13 +260,39 @@ export default function EditEventPage() {
       return;
     }
     setFieldErrors({});
-
     const token = getToken();
     if (!token) { router.push('/login'); return; }
-
     setSaving(true);
+
     try {
+      // 1. Upload de novas imagens para S3
+      let bannerUrl: string | undefined;
+      const allImageUrls = [...existingImageUrls];
+      if (imageFiles.length > 0) {
+        setUploadingImg(true);
+        const formData = new FormData();
+        formData.append('file', imageFiles[0]);
+        const uploadRes = await fetch(`${API_URL}/upload`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        setUploadingImg(false);
+        if (uploadRes.ok) {
+          const { url } = await uploadRes.json();
+          allImageUrls.push(url);
+        } else {
+          toast.error('Falha ao fazer upload da imagem');
+        }
+      }
+      if (allImageUrls.length > 0) bannerUrl = allImageUrls[0];
+
+      // 2. Atualiza o evento
       const rawZip = form.zipcode.replace(/\D/g, '');
+      const { complement, ...rest } = form;
+      const mergedAddress = complement
+        ? `${rest.address}${rest.address ? ', ' : ''}${complement}`.replace(/^, /, '')
+        : rest.address;
 
       const res = await fetch(`${API_URL}/events/${eventId}`, {
         method: 'PATCH',
@@ -243,20 +305,57 @@ export default function EditEventPage() {
           eventEndDate: form.eventEndDate ? new Date(form.eventEndDate).toISOString() : undefined,
           locationType: form.locationType,
           venueName: form.venueName || undefined,
-          address: form.address || undefined,
+          address: mergedAddress || undefined,
           city: form.city || undefined,
           state: form.state || undefined,
           zipcode: rawZip.length === 8 ? rawZip : undefined,
           onlineUrl: form.onlineUrl || undefined,
+          bannerUrl,
           maxAttendees: form.maxAttendees ? Number(form.maxAttendees) : undefined,
           isPublished: form.isPublished,
           status: form.isPublished ? 'published' : 'draft',
         }),
       });
-
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        throw new Error(d.message ?? 'Erro ao salvar');
+        throw new Error(d.message ?? 'Erro ao salvar evento');
+      }
+
+      // 3. Processa lotes: deletar, atualizar, criar
+      const activeLotes = lotes.filter((l) => !l.toDelete);
+      const toDeleteLotes = lotes.filter((l) => l.toDelete && l.id);
+
+      await Promise.all(toDeleteLotes.map((l) =>
+        fetch(`${API_URL}/tickets/${l.id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      ));
+
+      for (const lote of activeLotes) {
+        const priceValue = lote.ticketType === 'free' ? 0 : parseInt(lote.price || '0', 10) / 100;
+        const body = {
+          name: lote.name.trim(),
+          description: lote.description.trim() || undefined,
+          price: priceValue,
+          quantityAvailable: Number(lote.quantityAvailable),
+          ticketType: lote.ticketType,
+          saleStartDate: lote.saleStartDate || undefined,
+          saleEndDate: lote.saleEndDate || undefined,
+        };
+        if (lote.id) {
+          await fetch(`${API_URL}/tickets/${lote.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify(body),
+          });
+        } else {
+          await fetch(`${API_URL}/tickets`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ ...body, eventId }),
+          });
+        }
       }
 
       toast.success('Evento atualizado com sucesso!');
@@ -267,6 +366,7 @@ export default function EditEventPage() {
       scrollTop();
     } finally {
       setSaving(false);
+      setUploadingImg(false);
     }
   };
 
@@ -297,12 +397,13 @@ export default function EditEventPage() {
     );
   }
 
+  const visibleLotes = lotes.filter((l) => !l.toDelete);
+
   return (
     <DashboardLayout userRole="organizer">
       <ToastContainer toasts={toasts} dismiss={dismiss} />
 
       <div className="bg-gray-50 min-h-screen">
-        {/* Header */}
         <div
           className="text-white py-6 px-6"
           style={{ background: 'linear-gradient(135deg, #003B4A, #00C2A8)' }}
@@ -310,7 +411,7 @@ export default function EditEventPage() {
           <h1 className="text-2xl font-bold">Editar Evento</h1>
         </div>
 
-        <div className="p-6">
+        <div className="p-6 space-y-6">
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {/* Coluna esquerda — dados principais */}
             <div className="bg-white rounded-2xl shadow-sm p-6 space-y-5">
@@ -322,14 +423,11 @@ export default function EditEventPage() {
                 <label className="label-form">Título do evento *</label>
                 <input
                   type="text"
-                  className={`input-form ${fieldErrors.title ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
-                  placeholder="Ex: Festival de Música Eletrônica 2025"
+                  className={`input-form ${fieldErrors.title ? 'border-red-400 focus:border-red-400' : ''}`}
                   value={form.title}
                   onChange={(e) => setField('title', e.target.value)}
                 />
-                {fieldErrors.title && (
-                  <p className="mt-1.5 text-xs text-red-600">{fieldErrors.title}</p>
-                )}
+                {fieldErrors.title && <p className="mt-1 text-xs text-red-600">{fieldErrors.title}</p>}
               </div>
 
               <div>
@@ -337,7 +435,6 @@ export default function EditEventPage() {
                 <textarea
                   rows={3}
                   className="input-form resize-none"
-                  placeholder="Descreva seu evento..."
                   value={form.description}
                   onChange={(e) => setField('description', e.target.value)}
                 />
@@ -346,23 +443,13 @@ export default function EditEventPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label-form">Categoria *</label>
-                  <select
-                    className="input-form"
-                    value={form.category}
-                    onChange={(e) => setField('category', e.target.value)}
-                  >
-                    {CATEGORIES.map((c) => (
-                      <option key={c.value} value={c.value}>{c.label}</option>
-                    ))}
+                  <select className="input-form" value={form.category} onChange={(e) => setField('category', e.target.value)}>
+                    {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="label-form">Formato</label>
-                  <select
-                    className="input-form"
-                    value={form.locationType}
-                    onChange={(e) => setField('locationType', e.target.value)}
-                  >
+                  <select className="input-form" value={form.locationType} onChange={(e) => setField('locationType', e.target.value)}>
                     <option value="presencial">Presencial</option>
                     <option value="online">Online</option>
                     <option value="híbrido">Híbrido</option>
@@ -375,51 +462,34 @@ export default function EditEventPage() {
                   <label className="label-form">Data de início *</label>
                   <input
                     type="datetime-local"
-                    className={`input-form ${fieldErrors.eventDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
+                    className={`input-form ${fieldErrors.eventDate ? 'border-red-400' : ''}`}
                     value={form.eventDate}
                     onChange={(e) => setField('eventDate', e.target.value)}
                   />
-                  {fieldErrors.eventDate && (
-                    <p className="mt-1.5 text-xs text-red-600">{fieldErrors.eventDate}</p>
-                  )}
+                  {fieldErrors.eventDate && <p className="mt-1 text-xs text-red-600">{fieldErrors.eventDate}</p>}
                 </div>
                 <div>
                   <label className="label-form">Data de término</label>
                   <input
                     type="datetime-local"
-                    className={`input-form ${fieldErrors.eventEndDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
+                    className={`input-form ${fieldErrors.eventEndDate ? 'border-red-400' : ''}`}
                     value={form.eventEndDate}
                     onChange={(e) => setField('eventEndDate', e.target.value)}
                   />
-                  {fieldErrors.eventEndDate && (
-                    <p className="mt-1.5 text-xs text-red-600">{fieldErrors.eventEndDate}</p>
-                  )}
+                  {fieldErrors.eventEndDate && <p className="mt-1 text-xs text-red-600">{fieldErrors.eventEndDate}</p>}
                 </div>
               </div>
 
               {form.locationType !== 'presencial' && (
                 <div>
                   <label className="label-form">URL do evento online</label>
-                  <input
-                    type="url"
-                    className="input-form"
-                    placeholder="https://..."
-                    value={form.onlineUrl}
-                    onChange={(e) => setField('onlineUrl', e.target.value)}
-                  />
+                  <input type="url" className="input-form" value={form.onlineUrl} onChange={(e) => setField('onlineUrl', e.target.value)} />
                 </div>
               )}
 
               <div>
                 <label className="label-form">Capacidade máxima</label>
-                <input
-                  type="number"
-                  min="1"
-                  className="input-form"
-                  placeholder="Ex: 500"
-                  value={form.maxAttendees}
-                  onChange={(e) => setField('maxAttendees', e.target.value)}
-                />
+                <input type="number" min="1" className="input-form" value={form.maxAttendees} onChange={(e) => setField('maxAttendees', e.target.value)} />
               </div>
 
               <div className="flex items-center gap-3 p-4 bg-[#00C2A8]/5 rounded-xl border border-[#00C2A8]/20">
@@ -449,7 +519,7 @@ export default function EditEventPage() {
                   style={{ backgroundColor: '#00C2A8' }}
                 >
                   <FaSave />
-                  {saving ? 'Salvando...' : 'Salvar Alterações'}
+                  {saving ? (uploadingImg ? 'Enviando imagem...' : 'Salvando...') : 'Salvar Alterações'}
                 </button>
               </div>
             </div>
@@ -464,13 +534,7 @@ export default function EditEventPage() {
 
                   <div>
                     <label className="label-form">Nome do local</label>
-                    <input
-                      type="text"
-                      className="input-form"
-                      placeholder="Ex: Allianz Parque"
-                      value={form.venueName}
-                      onChange={(e) => setField('venueName', e.target.value)}
-                    />
+                    <input type="text" className="input-form" value={form.venueName} onChange={(e) => setField('venueName', e.target.value)} />
                   </div>
 
                   <div className="grid grid-cols-3 gap-3">
@@ -478,10 +542,7 @@ export default function EditEventPage() {
                       <label className="label-form">CEP</label>
                       <div className="relative">
                         <input
-                          type="text"
-                          className="input-form"
-                          maxLength={9}
-                          placeholder="00000-000"
+                          type="text" className="input-form" maxLength={9} placeholder="00000-000"
                           value={form.zipcode}
                           onChange={(e) => setField('zipcode', e.target.value)}
                           onBlur={(e) => handleCepBlur(e.target.value)}
@@ -495,46 +556,23 @@ export default function EditEventPage() {
                     </div>
                     <div className="col-span-2">
                       <label className="label-form">Endereço</label>
-                      <input
-                        type="text"
-                        className="input-form"
-                        placeholder="Rua, número"
-                        value={form.address}
-                        onChange={(e) => setField('address', e.target.value)}
-                      />
+                      <input type="text" className="input-form" value={form.address} onChange={(e) => setField('address', e.target.value)} />
                     </div>
                   </div>
 
                   <div>
                     <label className="label-form">Complemento</label>
-                    <input
-                      type="text"
-                      className="input-form"
-                      placeholder="Apto, bloco, sala, etc."
-                      value={form.complement}
-                      onChange={(e) => setField('complement', e.target.value)}
-                    />
+                    <input type="text" className="input-form" placeholder="Apto, bloco, sala..." value={form.complement} onChange={(e) => setField('complement', e.target.value)} />
                   </div>
 
                   <div className="grid grid-cols-3 gap-3">
                     <div className="col-span-2">
                       <label className="label-form">Cidade</label>
-                      <input
-                        type="text"
-                        className="input-form"
-                        value={form.city}
-                        onChange={(e) => setField('city', e.target.value)}
-                      />
+                      <input type="text" className="input-form" value={form.city} onChange={(e) => setField('city', e.target.value)} />
                     </div>
                     <div>
                       <label className="label-form">UF</label>
-                      <input
-                        type="text"
-                        maxLength={2}
-                        className="input-form uppercase"
-                        value={form.state}
-                        onChange={(e) => setField('state', e.target.value.toUpperCase())}
-                      />
+                      <input type="text" maxLength={2} className="input-form uppercase" value={form.state} onChange={(e) => setField('state', e.target.value.toUpperCase())} />
                     </div>
                   </div>
                 </div>
@@ -543,18 +581,12 @@ export default function EditEventPage() {
               {/* Imagens */}
               <div className="bg-white rounded-2xl shadow-sm p-6 space-y-3">
                 <label className="label-form flex items-center gap-2 !mb-0">
-                  <FaImages className="text-[#00C2A8]" /> Imagens do evento (até 10)
+                  <FaImages className="text-[#00C2A8]" /> Imagens do evento
                 </label>
                 <p className="text-xs text-gray-400">A primeira imagem será usada como capa.</p>
 
                 <label className="block w-full border-2 border-dashed border-[#00C2A8]/40 rounded-xl p-5 text-center cursor-pointer hover:border-[#00C2A8] hover:bg-[#00C2A8]/5 transition-all">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => handleImageFiles(e.target.files)}
-                  />
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleImageFiles(e.target.files)} />
                   <FaImages className="text-2xl text-[#00C2A8]/50 mx-auto mb-1.5" />
                   <p className="text-sm text-gray-500">Clique ou arraste imagens aqui</p>
                   <p className="text-xs text-gray-400 mt-0.5">PNG, JPG, WEBP • Máx. 5 MB</p>
@@ -565,15 +597,9 @@ export default function EditEventPage() {
                     {imagePreviews.map((src, i) => (
                       <div key={i} className="relative group">
                         {i === 0 && (
-                          <span className="absolute top-1 left-1 z-10 text-[10px] font-bold bg-[#00C2A8] text-white px-1.5 py-0.5 rounded">
-                            CAPA
-                          </span>
+                          <span className="absolute top-1 left-1 z-10 text-[10px] font-bold bg-[#00C2A8] text-white px-1.5 py-0.5 rounded">CAPA</span>
                         )}
-                        <img
-                          src={src}
-                          alt=""
-                          className="w-full h-20 object-cover rounded-xl border border-gray-200"
-                        />
+                        <img src={src} alt="" className="w-full h-20 object-cover rounded-xl border border-gray-200" />
                         <button
                           type="button"
                           onClick={() => removeImage(i)}
@@ -587,6 +613,134 @@ export default function EditEventPage() {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Lotes / Ingressos */}
+          <div className="bg-white rounded-2xl shadow-sm p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <FaTicketAlt className="text-[#00C2A8]" /> Lotes de Ingressos
+              </h2>
+              <button
+                onClick={addLote}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl border-2 border-[#00C2A8] text-[#00C2A8] hover:bg-[#00C2A8] hover:text-white transition-all"
+              >
+                <FaPlus /> Adicionar lote
+              </button>
+            </div>
+
+            {visibleLotes.length === 0 ? (
+              <p className="text-center text-gray-400 py-8">Nenhum lote cadastrado. Clique em "Adicionar lote" para criar.</p>
+            ) : (
+              <div className="space-y-4">
+                {lotes.map((lote, idx) => {
+                  if (lote.toDelete) return null;
+                  return (
+                    <div key={idx} className="border border-gray-200 rounded-xl p-5 space-y-4 relative">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-gray-700">
+                          {lote.id ? `Lote #${lote.id}` : 'Novo lote'}
+                          {lote.isNew && <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Novo</span>}
+                        </span>
+                        <button
+                          onClick={() => markDelete(idx)}
+                          className="text-red-400 hover:text-red-600 transition-colors"
+                          title="Remover lote"
+                        >
+                          <FaTrash />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="label-form">Nome do lote *</label>
+                          <input
+                            type="text"
+                            className="input-form"
+                            placeholder="Ex: 1º Lote, VIP, Meia-entrada"
+                            value={lote.name}
+                            onChange={(e) => setLoteField(idx, 'name', e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="label-form">Tipo</label>
+                          <select
+                            className="input-form"
+                            value={lote.ticketType}
+                            onChange={(e) => setLoteField(idx, 'ticketType', e.target.value as 'paid' | 'free')}
+                          >
+                            <option value="paid">Pago</option>
+                            <option value="free">Gratuito</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        {lote.ticketType === 'paid' && (
+                          <div>
+                            <label className="label-form">Preço</label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">R$</span>
+                              <input
+                                type="text"
+                                className="input-form pl-9"
+                                placeholder="0,00"
+                                value={lote.price ? formatPrice(lote.price) : ''}
+                                onFocus={(e) => { e.target.value = lote.price || ''; }}
+                                onBlur={(e) => { e.target.value = lote.price ? formatPrice(lote.price) : ''; }}
+                                onChange={(e) => handlePriceInput(idx, e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        <div>
+                          <label className="label-form">Quantidade disponível</label>
+                          <input
+                            type="number"
+                            min="1"
+                            className="input-form"
+                            value={lote.quantityAvailable}
+                            onChange={(e) => setLoteField(idx, 'quantityAvailable', e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="label-form">Descrição do lote (opcional)</label>
+                        <input
+                          type="text"
+                          className="input-form"
+                          placeholder="Ex: Válido apenas para estudantes"
+                          value={lote.description}
+                          onChange={(e) => setLoteField(idx, 'description', e.target.value)}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="label-form">Início das vendas</label>
+                          <input
+                            type="datetime-local"
+                            className="input-form"
+                            value={lote.saleStartDate}
+                            onChange={(e) => setLoteField(idx, 'saleStartDate', e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="label-form">Fim das vendas</label>
+                          <input
+                            type="datetime-local"
+                            className="input-form"
+                            value={lote.saleEndDate}
+                            onChange={(e) => setLoteField(idx, 'saleEndDate', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

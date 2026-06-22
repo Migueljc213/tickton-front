@@ -267,6 +267,22 @@ export default function NewEventPage() {
     try {
       const str = (v: string) => v.trim() || undefined;
 
+      // Upload das imagens para S3 antes de criar o evento
+      let bannerUrl: string | undefined;
+      if (imageFiles.length > 0) {
+        const formData = new FormData();
+        formData.append('file', imageFiles[0]);
+        const uploadRes = await fetch(`${API_URL}/upload`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        if (uploadRes.ok) {
+          const { url } = await uploadRes.json();
+          bannerUrl = url;
+        }
+      }
+
       const evtRes = await fetch(`${API_URL}/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -285,7 +301,7 @@ export default function NewEventPage() {
           state: str(event.state),
           zipcode: str(event.zipcode),
           onlineUrl: str(event.onlineUrl),
-          bannerUrl: undefined,
+          bannerUrl,
           maxAttendees: event.maxAttendees ? Number(event.maxAttendees) : undefined,
           isPublic: event.isPublished,
         }),
