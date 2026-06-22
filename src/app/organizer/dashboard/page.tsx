@@ -7,6 +7,18 @@ import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from 'recharts';
+import {
   FaPlus,
   FaChartLine,
   FaQrcode,
@@ -157,10 +169,6 @@ export default function OrganizerDashboard() {
   const getStatusLabel = (status: string) =>
     STATUS_LABELS[status as keyof typeof STATUS_LABELS] || status;
 
-  const conversionRate = stats.totalEvents > 0
-    ? ((stats.activeEvents / stats.totalEvents) * 100).toFixed(1)
-    : '0';
-
   if (eventsLoading || statsLoading) {
     return (
       <DashboardLayout userRole="organizer">
@@ -180,6 +188,30 @@ export default function OrganizerDashboard() {
 
   const PLATFORM_FEE = 0.07;
   const netRevenue = stats.totalRevenue * (1 - PLATFORM_FEE);
+
+  const chartData = organizerEvents
+    .filter((e) => eventStats[e.id])
+    .map((e) => ({
+      name: e.title.length > 14 ? e.title.slice(0, 13) + '…' : e.title,
+      receita: parseFloat(eventStats[e.id].revenue.toFixed(2)),
+      ingressos: eventStats[e.id].totalTickets,
+      checkins: eventStats[e.id].checkedIn,
+    }));
+
+  const checkInsByDateData = (() => {
+    const map: Record<string, number> = {};
+    organizerEvents.forEach((e) => {
+      (eventStats[e.id]?.checkInsByDate ?? []).forEach(({ date, count }) => {
+        map[date] = (map[date] ?? 0) + count;
+      });
+    });
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({
+        date: new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+        checkins: count,
+      }));
+  })();
 
   const STAT_CARDS = [
     {
@@ -251,6 +283,77 @@ export default function OrganizerDashboard() {
             </div>
           ))}
         </div>
+
+        {/* Charts */}
+        {chartData.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginBottom: 28 }}>
+
+            {/* Receita por evento */}
+            <div style={cardStyle}>
+              <h2 style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem', marginBottom: 20 }}>
+                Receita por Evento (R$)
+              </h2>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v) => `R$${(v as number).toLocaleString('pt-BR')}`} width={72} />
+                  <Tooltip
+                    formatter={(value) => [`R$ ${(value as number).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Receita']}
+                    contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
+                  />
+                  <Bar dataKey="receita" fill="#00C2A8" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Ingressos vs Check-ins por evento */}
+            <div style={cardStyle}>
+              <h2 style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem', marginBottom: 20 }}>
+                Ingressos Vendidos vs Check-ins
+              </h2>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} allowDecimals={false} />
+                  <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="ingressos" name="Vendidos" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="checkins" name="Check-ins" fill="#00C2A8" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Check-ins ao longo do tempo */}
+            {checkInsByDateData.length > 1 && (
+              <div style={{ ...cardStyle, gridColumn: '1 / -1' }}>
+                <h2 style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem', marginBottom: 20 }}>
+                  Check-ins ao Longo do Tempo
+                </h2>
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={checkInsByDateData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                    <defs>
+                      <linearGradient id="colorCheckins" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#00C2A8" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#00C2A8" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} />
+                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} allowDecimals={false} />
+                    <Tooltip
+                      formatter={(value) => [value, 'Check-ins']}
+                      contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
+                    />
+                    <Area type="monotone" dataKey="checkins" name="Check-ins" stroke="#00C2A8" strokeWidth={2} fill="url(#colorCheckins)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+          </div>
+        )}
 
         {/* Events table */}
         <div style={{ ...cardStyle, padding: 0, marginBottom: 28, overflow: 'hidden' }}>

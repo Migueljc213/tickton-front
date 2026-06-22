@@ -125,7 +125,7 @@ export default function Header() {
         className={`sticky top-0 z-50 transition-all duration-300 ${
           scrolled || !isHeroPage
             ? 'bg-white shadow-sm border-b border-gray-100'
-            : 'bg-transparent border-b border-white/10'
+            : 'bg-[#002535]/95 backdrop-blur-sm border-b border-white/10'
         }`}
       >
         <div className="container mx-auto px-4">
