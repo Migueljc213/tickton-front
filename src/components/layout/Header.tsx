@@ -64,7 +64,8 @@ export default function Header() {
     const storedName = storage.getUserName();
     if (storedName) {
       setUserName(storedName);
-    } else if (token) {
+    }
+    if (token) {
       usersService.getMe().then((user) => {
         storage.setUserName(user.name);
         storage.setUserRole(user.role);

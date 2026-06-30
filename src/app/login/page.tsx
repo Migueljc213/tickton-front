@@ -8,8 +8,13 @@ import { FaEnvelope, FaLock, FaTicketAlt, FaEye, FaEyeSlash, FaArrowRight, FaChe
 import { useAuth } from '@/hooks';
 import { isEmailValid, isFieldEmpty } from '@/lib/utils/validation';
 
-const LOGIN_REDIRECT = '/events';
 const REGISTER_PATH  = '/register';
+
+function getRedirectByRole(role: string): string {
+  if (role === 'admin')     return '/admin/dashboard';
+  if (role === 'organizer') return '/organizer/dashboard';
+  return '/tickets';
+}
 
 /* Credenciais de demonstração para acesso rápido */
 const DEMO_ACCOUNTS = [
@@ -84,8 +89,8 @@ function LoginContent() {
     }
 
     try {
-      await login({ email, password });
-      router.push(LOGIN_REDIRECT);
+      const response = await login({ email, password });
+      router.push(getRedirectByRole(response.role));
     } catch {
       setLocalError('Credenciais inválidas. Verifique seu e-mail e senha.');
     }
@@ -97,8 +102,8 @@ function LoginContent() {
     setEmail(account.email);
     setPassword(account.password);
     try {
-      await login({ email: account.email, password: account.password });
-      router.push(account.redirect);
+      const response = await login({ email: account.email, password: account.password });
+      router.push(getRedirectByRole(response.role));
     } catch {
       /* Em dev sem backend, apenas preenche o formulário */
     } finally {
