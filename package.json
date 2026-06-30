@@ -6,7 +6,10 @@
     "dev": "next dev --turbopack -p ${PORT:-3002}",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "release:patch": "npm version patch && git push && git push --tags",
+    "release:minor": "npm version minor && git push && git push --tags",
+    "release:major": "npm version major && git push && git push --tags"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.16",

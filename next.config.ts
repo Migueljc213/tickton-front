@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import pkg from './package.json';
 
 const nextConfig: NextConfig & { eslint?: { ignoreDuringBuilds?: boolean } } = {
   eslint: {
@@ -6,6 +7,9 @@ const nextConfig: NextConfig & { eslint?: { ignoreDuringBuilds?: boolean } } = {
   },
   typescript: {
     ignoreBuildErrors: true,
+  },
+  env: {
+    NEXT_PUBLIC_APP_VERSION: pkg.version,
   },
 };
 

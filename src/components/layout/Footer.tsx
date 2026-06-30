@@ -113,7 +113,10 @@ export default function Footer() {
               </Link>
             </div>
             <p className="text-sm text-light-green/80">
-              © 2025 Ticketon. Todos os direitos reservados.
+              © 2025 Ticketon. Todos os direitos reservados.{' '}
+              <span className="text-light-green/50">
+                v{process.env.NEXT_PUBLIC_APP_VERSION}
+              </span>
             </p>
           </div>
         </div>
