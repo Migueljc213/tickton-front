@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { FaEye, FaEyeSlash, FaTicketAlt, FaCheckCircle } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaCheckCircle } from 'react-icons/fa';
 import { authService } from '@/lib/api/services/auth.service';
 import { maskCpfCnpj } from '@/lib/utils/format';
 
@@ -101,7 +102,13 @@ export default function RegisterPage() {
         className="hidden lg:flex flex-col justify-center items-center w-5/12 p-12 text-white"
         style={{ background: 'linear-gradient(135deg, #003B4A 0%, #00C2A8 100%)' }}
       >
-        <FaTicketAlt className="text-6xl mb-6 opacity-90" />
+        <Image
+            src="/logo-ticketon.png"
+            alt="Ticketon"
+            width={200}
+            height={56}
+            className="h-16 w-auto object-contain mb-6"
+          />
         <h1 className="text-4xl font-black mb-4 text-center">Crie sua conta</h1>
         <p className="text-white/80 text-center text-lg leading-relaxed">
           Junte-se a milhares de pessoas que descobrem e curtem eventos com o Ticketon.

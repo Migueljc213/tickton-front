@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { storage } from '@/lib/utils/storage';
@@ -139,11 +140,14 @@ export default function Sidebar({ userRole: roleProp }: SidebarProps) {
       >
         {/* Logo + fechar mobile */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#00C2A8,#007465)' }}>
-              <FaTicketAlt className="text-white text-sm" />
-            </div>
-            <span className="text-lg font-black text-gray-900 group-hover:text-turquoise transition-colors">Ticketon</span>
+          <Link href="/" className="flex items-center">
+            <Image
+              src="/logo-ticketon.png"
+              alt="Ticketon"
+              width={140}
+              height={36}
+              className="h-8 w-auto object-contain"
+            />
           </Link>
           <button onClick={() => setIsOpen(false)} className="lg:hidden text-gray-400 hover:text-gray-700">
             <FaTimes className="w-5 h-5" />

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { storage } from '@/lib/utils/storage';
@@ -133,18 +134,15 @@ export default function Header() {
           <div className="flex items-center justify-between h-16">
 
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2.5 group">
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-all"
-                style={{ background: 'linear-gradient(135deg, #00C2A8, #007465)' }}
-              >
-                <FaTicketAlt className="text-white text-sm" />
-              </div>
-              <span className={`text-xl font-black tracking-tight transition-colors ${
-                scrolled || !isHeroPage ? 'text-gray-900' : 'text-white'
-              }`}>
-                Ticketon
-              </span>
+            <Link href="/" className="flex items-center group">
+              <Image
+                src="/logo-ticketon.png"
+                alt="Ticketon"
+                width={160}
+                height={40}
+                className="h-9 w-auto object-contain"
+                priority
+              />
             </Link>
 
             {/* Nav Desktop */}

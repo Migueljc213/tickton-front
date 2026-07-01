@@ -2,9 +2,10 @@
 
 import { useState, Suspense } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { FaEnvelope, FaLock, FaTicketAlt, FaEye, FaEyeSlash, FaArrowRight, FaCheckCircle } from 'react-icons/fa';
+import { FaEnvelope, FaLock, FaEye, FaEyeSlash, FaArrowRight, FaCheckCircle } from 'react-icons/fa';
 import { useAuth } from '@/hooks';
 import { isEmailValid, isFieldEmpty } from '@/lib/utils/validation';
 
@@ -123,11 +124,15 @@ function LoginContent() {
         <div className="absolute bottom-16 right-8 w-64 h-64 bg-light-green/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-3 relative z-10">
-          <div className="w-10 h-10 bg-turquoise rounded-xl flex items-center justify-center shadow-lg shadow-turquoise/30">
-            <FaTicketAlt className="text-white text-base" />
-          </div>
-          <span className="text-2xl font-black text-white tracking-tight">Ticketon</span>
+        <Link href="/" className="relative z-10">
+          <Image
+            src="/logo-ticketon.png"
+            alt="Ticketon"
+            width={180}
+            height={48}
+            className="h-12 w-auto object-contain"
+            priority
+          />
         </Link>
 
         {/* Conteúdo central */}
@@ -170,11 +175,14 @@ function LoginContent() {
         <div className="w-full max-w-md">
 
           {/* Logo mobile */}
-          <Link href="/" className="flex items-center gap-2.5 mb-8 lg:hidden">
-            <div className="w-8 h-8 bg-turquoise rounded-lg flex items-center justify-center">
-              <FaTicketAlt className="text-white text-sm" />
-            </div>
-            <span className="text-xl font-black text-gray-900">Ticketon</span>
+          <Link href="/" className="flex mb-8 lg:hidden">
+            <Image
+              src="/logo-ticketon.png"
+              alt="Ticketon"
+              width={140}
+              height={36}
+              className="h-9 w-auto object-contain"
+            />
           </Link>
 
           {/* Cabeçalho do form */}

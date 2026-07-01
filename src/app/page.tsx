@@ -7,7 +7,7 @@ import {
 } from 'react-icons/fa';
 import HomeFeaturedEvents from './HomeFeaturedEvents';
 import HomeNearbyEvents from './HomeNearbyEvents';
-import { adaptApiEvent } from '@/lib/utils/adapt-events';
+import { adaptApiEvent, isUpcomingEvent } from '@/lib/utils/adapt-events';
 import type { Event as ApiEvent } from '@/types/api';
 
 export const revalidate = 60;
@@ -31,7 +31,7 @@ async function fetchEvents() {
     if (!r.ok) return [];
     const data = await r.json();
     const list: ApiEvent[] = Array.isArray(data) ? data : (data.events ?? []);
-    return list.map(adaptApiEvent);
+    return list.filter(isUpcomingEvent).map(adaptApiEvent);
   } catch { return []; }
 }
 

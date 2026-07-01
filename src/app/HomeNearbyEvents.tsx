@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { FaMapMarkerAlt, FaSpinner } from 'react-icons/fa';
 import Carousel from '@/components/ui/carousel';
 import EventCard from '@/components/events/EventCard';
-import { adaptApiEvent } from '@/lib/utils/adapt-events';
+import { adaptApiEvent, isUpcomingEvent } from '@/lib/utils/adapt-events';
 import type { Event as ApiEvent } from '@/types/api';
 import type { Event as CardEvent } from '@/types/event';
 
@@ -54,7 +54,7 @@ export default function HomeNearbyEvents({ fallbackEvents }: Props) {
           if (r.ok) {
             const data = await r.json();
             const list: ApiEvent[] = Array.isArray(data) ? data : (data.events ?? []);
-            setNearbyEvents(list.map(adaptApiEvent));
+            setNearbyEvents(list.filter(isUpcomingEvent).map(adaptApiEvent));
           }
         } catch { /* silently fall back */ }
         setGeoStatus('found');

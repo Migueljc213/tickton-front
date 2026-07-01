@@ -1,6 +1,14 @@
 import type { Event as ApiEvent } from '@/types/api';
 import type { Event as CardEvent } from '@/types/event';
 
+export function isUpcomingEvent(e: ApiEvent): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const endDate = e.eventEndDate ? new Date(e.eventEndDate) : new Date(e.eventDate);
+  const status = (e.status ?? '').toLowerCase();
+  return status === 'active' && endDate >= today;
+}
+
 export function adaptApiEvent(e: ApiEvent): CardEvent {
   return {
     id: String(e.id),
