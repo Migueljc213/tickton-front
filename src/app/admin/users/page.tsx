@@ -7,7 +7,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { storage } from '@/lib/utils/storage';
 import { usersService } from '@/lib/api/services/users.service';
-import { FaUsers, FaSearch, FaTrash, FaShieldAlt, FaUserTie, FaUser } from 'react-icons/fa';
+import { FaUsers, FaSearch, FaTrash } from 'react-icons/fa';
 import type { User } from '@/types/api';
 
 const ROLE_LABEL: Record<string, string> = {
@@ -22,12 +22,6 @@ const ROLE_COLORS: Record<string, string> = {
   participant: '#059669',
 };
 
-const ROLE_ICONS: Record<string, React.ReactNode> = {
-  admin: <FaShieldAlt />,
-  organizer: <FaUserTie />,
-  participant: <FaUser />,
-};
-
 export default function AdminUsersPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
@@ -39,6 +33,22 @@ export default function AdminUsersPage() {
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; user: User | null; loading: boolean }>({
     open: false, user: null, loading: false,
   });
+  const [roleSaving, setRoleSaving] = useState<number | null>(null);
+  const currentUserId = storage.getUserId();
+
+  const handleRoleChange = async (user: User, role: 'participant' | 'organizer' | 'admin') => {
+    if (role === user.role) return;
+    setRoleSaving(user.id);
+    try {
+      await usersService.updateUserRole(user.id, role);
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, role } : u)));
+      toast.success(`Role de ${user.name} atualizada para ${ROLE_LABEL[role]}.`);
+    } catch {
+      toast.error('Erro ao atualizar role. Tente novamente.');
+    } finally {
+      setRoleSaving(null);
+    }
+  };
 
   useEffect(() => {
     const role = storage.getUserRole();
@@ -162,10 +172,22 @@ export default function AdminUsersPage() {
                     <td style={{ padding: '12px 16px', fontSize: '0.875rem', color: '#374151' }}>{user.email}</td>
                     <td style={{ padding: '12px 16px', fontSize: '0.875rem', color: '#64748b' }}>{user.cpfCnpj}</td>
                     <td style={{ padding: '12px 16px' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.75rem', fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: `${ROLE_COLORS[user.role] ?? '#6b7280'}18`, color: ROLE_COLORS[user.role] ?? '#6b7280' }}>
-                        {ROLE_ICONS[user.role]}
-                        {ROLE_LABEL[user.role] ?? user.role}
-                      </span>
+                      <select
+                        value={user.role}
+                        disabled={user.id === currentUserId || roleSaving === user.id}
+                        onChange={(e) => handleRoleChange(user, e.target.value as 'participant' | 'organizer' | 'admin')}
+                        title={user.id === currentUserId ? 'Você não pode alterar sua própria role' : undefined}
+                        style={{
+                          fontSize: '0.75rem', fontWeight: 600, padding: '4px 10px', borderRadius: 20,
+                          background: `${ROLE_COLORS[user.role] ?? '#6b7280'}18`, color: ROLE_COLORS[user.role] ?? '#6b7280',
+                          border: 'none', cursor: user.id === currentUserId ? 'not-allowed' : 'pointer',
+                          opacity: roleSaving === user.id ? 0.6 : 1,
+                        }}
+                      >
+                        <option value="participant">Participante</option>
+                        <option value="organizer">Organizador</option>
+                        <option value="admin">Admin</option>
+                      </select>
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       <button

@@ -67,14 +67,17 @@ type EventFieldErrors = {
   eventEndDate?: string;
 };
 
-const DT_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
-function validateDatetime(value: string): 'missing' | 'missing-time' | 'invalid' | 'valid' {
+function validateDateOnly(value: string): 'missing' | 'invalid' | 'valid' {
   if (!value) return 'missing';
-  if (DT_REGEX.test(value)) return isNaN(new Date(value).getTime()) ? 'invalid' : 'valid';
-  if (DATE_ONLY_REGEX.test(value)) return 'missing-time';
-  return 'invalid';
+  if (!DATE_ONLY_REGEX.test(value)) return 'invalid';
+  return isNaN(new Date(value).getTime()) ? 'invalid' : 'valid';
+}
+
+// Sem horário informado, o evento vale até o fim do dia da data escolhida.
+function combineDateTime(date: string, time: string): string {
+  return `${date}T${time || '23:59'}`;
 }
 
 const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -114,7 +117,9 @@ export default function NewEventPage() {
     description: '',
     category: 'music',
     eventDate: '',
+    eventTime: '',
     eventEndDate: '',
+    eventEndTime: '',
     locationType: 'presencial',
     venueName: '',
     address: '',
@@ -131,10 +136,11 @@ export default function NewEventPage() {
 
   const setEventField = (k: string, v: string | boolean) => {
     setEvent((prev) => ({ ...prev, [k]: v }));
-    if (k === 'title' || k === 'eventDate' || k === 'eventEndDate') {
+    const errKey = k === 'eventTime' ? 'eventDate' : k === 'eventEndTime' ? 'eventEndDate' : k;
+    if (errKey === 'title' || errKey === 'eventDate' || errKey === 'eventEndDate') {
       setFieldErrors((prev) => {
         const n = { ...prev };
-        delete n[k as keyof EventFieldErrors];
+        delete n[errKey as keyof EventFieldErrors];
         return n;
       });
     }
@@ -194,17 +200,17 @@ export default function NewEventPage() {
     const errs: EventFieldErrors = {};
     if (!event.title.trim()) errs.title = 'Título é obrigatório';
 
-    const startStatus = validateDatetime(event.eventDate);
+    const startStatus = validateDateOnly(event.eventDate);
     if (startStatus === 'missing') errs.eventDate = 'Data de início é obrigatória';
-    else if (startStatus === 'missing-time') errs.eventDate = 'Informe também o horário de início';
     else if (startStatus === 'invalid') errs.eventDate = 'Data de início inválida';
 
     if (event.eventEndDate) {
-      const endStatus = validateDatetime(event.eventEndDate);
-      if (endStatus === 'missing-time') errs.eventEndDate = 'Informe também o horário de término';
-      else if (endStatus === 'invalid') errs.eventEndDate = 'Data de término inválida';
+      const endStatus = validateDateOnly(event.eventEndDate);
+      if (endStatus === 'invalid') errs.eventEndDate = 'Data de término inválida';
       else if (endStatus === 'valid' && !errs.eventDate) {
-        if (new Date(event.eventEndDate) <= new Date(event.eventDate))
+        const start = new Date(combineDateTime(event.eventDate, event.eventTime));
+        const end = new Date(combineDateTime(event.eventEndDate, event.eventEndTime));
+        if (end <= start)
           errs.eventEndDate = 'A data de término deve ser posterior à data de início';
       }
     }
@@ -213,6 +219,16 @@ export default function NewEventPage() {
   };
 
   const validateLotes = () => {
+    const eventStart = event.eventDate
+      ? new Date(combineDateTime(event.eventDate, event.eventTime))
+      : null;
+    const eventEnd = event.eventEndDate
+      ? new Date(combineDateTime(event.eventEndDate, event.eventEndTime))
+      : eventStart;
+    const maxAttendees = event.maxAttendees ? Number(event.maxAttendees) : null;
+
+    let totalQuantity = 0;
+
     for (const l of lotes) {
       if (!l.name.trim()) return 'Todos os lotes precisam de nome';
       if (l.ticketType === 'paid' && (!l.price || parseInt(l.price, 10) <= 0))
@@ -225,7 +241,17 @@ export default function NewEventPage() {
         new Date(l.saleEndDate) <= new Date(l.saleStartDate)
       )
         return `Lote "${l.name}": fim das vendas deve ser posterior ao início`;
+      if (eventStart && l.saleStartDate && new Date(l.saleStartDate) < eventStart)
+        return `Lote "${l.name}": início das vendas não pode ser antes do início do evento`;
+      if (eventEnd && l.saleEndDate && new Date(l.saleEndDate) > eventEnd)
+        return `Lote "${l.name}": fim das vendas não pode ser depois do término do evento`;
+
+      totalQuantity += Number(l.quantityAvailable);
     }
+
+    if (maxAttendees != null && totalQuantity > maxAttendees)
+      return `A soma dos lotes (${totalQuantity}) ultrapassa a capacidade máxima do evento (${maxAttendees})`;
+
     return null;
   };
 
@@ -291,8 +317,10 @@ export default function NewEventPage() {
           title: event.title,
           description: event.description,
           category: event.category,
-          eventDate: event.eventDate,
-          eventEndDate: event.eventEndDate || undefined,
+          eventDate: combineDateTime(event.eventDate, event.eventTime),
+          eventEndDate: event.eventEndDate
+            ? combineDateTime(event.eventEndDate, event.eventEndTime)
+            : undefined,
           locationType: event.locationType,
           venueName: str(event.venueName),
           address: str(event.address),
@@ -477,24 +505,43 @@ export default function NewEventPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="label-form">Data de início *</label>
-                    <input
-                      type="datetime-local"
-                      className={`input-form ${fieldErrors.eventDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
-                      value={event.eventDate}
-                      onChange={(e) => setEventField('eventDate', e.target.value)}
-                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="date"
+                        className={`input-form ${fieldErrors.eventDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
+                        value={event.eventDate}
+                        onChange={(e) => setEventField('eventDate', e.target.value)}
+                      />
+                      <input
+                        type="time"
+                        className="input-form"
+                        value={event.eventTime}
+                        onChange={(e) => setEventField('eventTime', e.target.value)}
+                      />
+                    </div>
+                    <p className="mt-1.5 text-xs text-gray-400">
+                      Hora opcional — sem ela, vale até 23:59 do dia escolhido.
+                    </p>
                     {fieldErrors.eventDate && (
                       <p className="mt-1.5 text-xs text-red-600">{fieldErrors.eventDate}</p>
                     )}
                   </div>
                   <div>
                     <label className="label-form">Data de término</label>
-                    <input
-                      type="datetime-local"
-                      className={`input-form ${fieldErrors.eventEndDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
-                      value={event.eventEndDate}
-                      onChange={(e) => setEventField('eventEndDate', e.target.value)}
-                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="date"
+                        className={`input-form ${fieldErrors.eventEndDate ? 'border-red-400 focus:border-red-400 focus:ring-red-400/15' : ''}`}
+                        value={event.eventEndDate}
+                        onChange={(e) => setEventField('eventEndDate', e.target.value)}
+                      />
+                      <input
+                        type="time"
+                        className="input-form"
+                        value={event.eventEndTime}
+                        onChange={(e) => setEventField('eventEndTime', e.target.value)}
+                      />
+                    </div>
                     {fieldErrors.eventEndDate && (
                       <p className="mt-1.5 text-xs text-red-600">{fieldErrors.eventEndDate}</p>
                     )}
@@ -832,7 +879,9 @@ export default function NewEventPage() {
                   <div>
                     <span className="text-gray-400">Data</span>
                     <p className="font-semibold text-gray-800">
-                      {event.eventDate ? new Date(event.eventDate).toLocaleString('pt-BR') : '-'}
+                      {event.eventDate
+                        ? new Date(combineDateTime(event.eventDate, event.eventTime)).toLocaleString('pt-BR')
+                        : '-'}
                     </p>
                   </div>
                   <div>

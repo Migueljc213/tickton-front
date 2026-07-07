@@ -19,13 +19,16 @@ export default function RegisterPage() {
     cpfCnpj: '',
     password: '',
     confirmPassword: '',
+    gender: '',
+    age: '',
+    neighborhood: '',
   });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const value = e.target.name === 'cpfCnpj' ? maskCpfCnpj(e.target.value) : e.target.value;
     setForm({ ...form, [e.target.name]: value });
     setError(null);
@@ -58,6 +61,9 @@ export default function RegisterPage() {
           email: form.email.trim().toLowerCase(),
           password: form.password,
           cpfCnpj: form.cpfCnpj.trim() || undefined,
+          gender: form.gender || undefined,
+          age: form.age ? parseInt(form.age, 10) : undefined,
+          neighborhood: form.neighborhood.trim() || undefined,
         }),
       });
 
@@ -184,6 +190,52 @@ export default function RegisterPage() {
                 onChange={handleChange}
                 placeholder="000.000.000-00"
                 maxLength={18}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00C2A8] text-sm transition-all"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Gênero</label>
+                <select
+                  name="gender"
+                  value={form.gender}
+                  onChange={handleChange}
+                  className="w-full px-3 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00C2A8] text-sm bg-white transition-all"
+                >
+                  <option value="">Prefiro não informar</option>
+                  <option value="masculino">Masculino</option>
+                  <option value="feminino">Feminino</option>
+                  <option value="nao_binario">Não-binário</option>
+                  <option value="outro">Outro</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Idade</label>
+                <input
+                  type="number"
+                  name="age"
+                  min={1}
+                  max={120}
+                  placeholder="Ex: 25"
+                  value={form.age}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00C2A8] text-sm transition-all"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                Bairro / Cidade de origem
+              </label>
+              <input
+                type="text"
+                name="neighborhood"
+                value={form.neighborhood}
+                onChange={handleChange}
+                placeholder="Ex: Copacabana"
+                maxLength={100}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00C2A8] text-sm transition-all"
               />
             </div>

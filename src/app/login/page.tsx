@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { FaEnvelope, FaLock, FaEye, FaEyeSlash, FaArrowRight, FaCheckCircle } from 'react-icons/fa';
 import { useAuth } from '@/hooks';
 import { isEmailValid, isFieldEmpty } from '@/lib/utils/validation';
+import { storage } from '@/lib/utils/storage';
 
 const REGISTER_PATH  = '/register';
 
@@ -64,7 +65,7 @@ const FEATURES = [
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, loading, error } = useAuth();
+  const { login, loading, error, isAuthenticated } = useAuth();
   const [email, setEmail]               = useState('');
   const [password, setPassword]         = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -74,6 +75,14 @@ function LoginContent() {
   const successMessage = searchParams.get('message') === 'organizer-created'
     ? 'Conta de organizador criada! Faça login para acessar o painel.'
     : null;
+
+  // Quem já está logado não deve ver a tela de login de novo
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const redirect = searchParams.get('redirect');
+    const role = storage.getUserRole();
+    router.replace(redirect || getRedirectByRole(role ?? ''));
+  }, [isAuthenticated, router, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,7 +100,8 @@ function LoginContent() {
 
     try {
       const response = await login({ email, password });
-      router.push(getRedirectByRole(response.role));
+      const redirect = searchParams.get('redirect');
+      router.push(redirect || getRedirectByRole(response.role));
     } catch {
       setLocalError('Credenciais inválidas. Verifique seu e-mail e senha.');
     }

@@ -52,19 +52,32 @@ const EMPTY_LOTE: LoteEdit = {
   ticketType: 'paid', saleStartDate: '', saleEndDate: '', isNew: true,
 };
 
-const DT_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
-function validateDatetime(value: string): 'missing' | 'missing-time' | 'invalid' | 'valid' {
+function validateDateOnly(value: string): 'missing' | 'invalid' | 'valid' {
   if (!value) return 'missing';
-  if (DT_REGEX.test(value)) return isNaN(new Date(value).getTime()) ? 'invalid' : 'valid';
-  if (DATE_ONLY_REGEX.test(value)) return 'missing-time';
-  return 'invalid';
+  if (!DATE_ONLY_REGEX.test(value)) return 'invalid';
+  return isNaN(new Date(value).getTime()) ? 'invalid' : 'valid';
+}
+
+// Sem horário informado, o evento vale até o fim do dia da data escolhida.
+function combineDateTime(date: string, time: string): string {
+  return `${date}T${time || '23:59'}`;
 }
 
 function toLocalDatetime(iso: string | null | undefined) {
   if (!iso) return '';
   return iso.slice(0, 16);
+}
+
+function toLocalDate(iso: string | null | undefined) {
+  if (!iso) return '';
+  return iso.slice(0, 10);
+}
+
+function toLocalTime(iso: string | null | undefined) {
+  if (!iso) return '';
+  return iso.slice(11, 16);
 }
 
 const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -91,7 +104,7 @@ export default function EditEventPage() {
 
   const [form, setForm] = useState({
     title: '', description: '', category: 'music',
-    eventDate: '', eventEndDate: '',
+    eventDate: '', eventTime: '', eventEndDate: '', eventEndTime: '',
     locationType: 'presencial',
     venueName: '', address: '', complement: '',
     city: '', state: '', zipcode: '', onlineUrl: '',
@@ -129,8 +142,10 @@ export default function EditEventPage() {
         title: ev.title ?? '',
         description: ev.description ?? '',
         category: ev.category ?? 'music',
-        eventDate: toLocalDatetime(ev.eventDate),
-        eventEndDate: toLocalDatetime(ev.eventEndDate),
+        eventDate: toLocalDate(ev.eventDate),
+        eventTime: toLocalTime(ev.eventDate),
+        eventEndDate: toLocalDate(ev.eventEndDate),
+        eventEndTime: toLocalTime(ev.eventEndDate),
         locationType: ev.locationType ?? 'presencial',
         venueName: ev.venueName ?? '',
         address: ev.address ?? '',
@@ -175,8 +190,9 @@ export default function EditEventPage() {
 
   const setField = (k: string, v: string | boolean) => {
     setForm((prev) => ({ ...prev, [k]: v }));
-    if (k === 'title' || k === 'eventDate' || k === 'eventEndDate') {
-      setFieldErrors((prev) => { const n = { ...prev }; delete n[k as keyof EditFieldErrors]; return n; });
+    const errKey = k === 'eventTime' ? 'eventDate' : k === 'eventEndTime' ? 'eventEndDate' : k;
+    if (errKey === 'title' || errKey === 'eventDate' || errKey === 'eventEndDate') {
+      setFieldErrors((prev) => { const n = { ...prev }; delete n[errKey as keyof EditFieldErrors]; return n; });
     }
   };
 
@@ -240,16 +256,16 @@ export default function EditEventPage() {
   const handleSave = async () => {
     const errs: EditFieldErrors = {};
     if (!form.title.trim()) errs.title = 'Título é obrigatório';
-    const startStatus = validateDatetime(form.eventDate);
+    const startStatus = validateDateOnly(form.eventDate);
     if (startStatus === 'missing') errs.eventDate = 'Data de início é obrigatória';
-    else if (startStatus === 'missing-time') errs.eventDate = 'Informe também o horário de início';
     else if (startStatus === 'invalid') errs.eventDate = 'Data de início inválida';
     if (form.eventEndDate) {
-      const endStatus = validateDatetime(form.eventEndDate);
-      if (endStatus === 'missing-time') errs.eventEndDate = 'Informe também o horário de término';
-      else if (endStatus === 'invalid') errs.eventEndDate = 'Data de término inválida';
+      const endStatus = validateDateOnly(form.eventEndDate);
+      if (endStatus === 'invalid') errs.eventEndDate = 'Data de término inválida';
       else if (endStatus === 'valid' && !errs.eventDate) {
-        if (new Date(form.eventEndDate) <= new Date(form.eventDate))
+        const start = new Date(combineDateTime(form.eventDate, form.eventTime));
+        const end = new Date(combineDateTime(form.eventEndDate, form.eventEndTime));
+        if (end <= start)
           errs.eventEndDate = 'A data de término deve ser posterior à data de início';
       }
     }
@@ -301,8 +317,12 @@ export default function EditEventPage() {
           title: form.title,
           description: form.description || undefined,
           category: form.category,
-          eventDate: form.eventDate ? new Date(form.eventDate).toISOString() : undefined,
-          eventEndDate: form.eventEndDate ? new Date(form.eventEndDate).toISOString() : undefined,
+          eventDate: form.eventDate
+            ? new Date(combineDateTime(form.eventDate, form.eventTime)).toISOString()
+            : undefined,
+          eventEndDate: form.eventEndDate
+            ? new Date(combineDateTime(form.eventEndDate, form.eventEndTime)).toISOString()
+            : undefined,
           locationType: form.locationType,
           venueName: form.venueName || undefined,
           address: mergedAddress || undefined,
@@ -460,22 +480,41 @@ export default function EditEventPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label-form">Data de início *</label>
-                  <input
-                    type="datetime-local"
-                    className={`input-form ${fieldErrors.eventDate ? 'border-red-400' : ''}`}
-                    value={form.eventDate}
-                    onChange={(e) => setField('eventDate', e.target.value)}
-                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="date"
+                      className={`input-form ${fieldErrors.eventDate ? 'border-red-400' : ''}`}
+                      value={form.eventDate}
+                      onChange={(e) => setField('eventDate', e.target.value)}
+                    />
+                    <input
+                      type="time"
+                      className="input-form"
+                      value={form.eventTime}
+                      onChange={(e) => setField('eventTime', e.target.value)}
+                    />
+                  </div>
+                  <p className="mt-1.5 text-xs text-gray-400">
+                    Hora opcional — sem ela, vale até 23:59 do dia escolhido.
+                  </p>
                   {fieldErrors.eventDate && <p className="mt-1 text-xs text-red-600">{fieldErrors.eventDate}</p>}
                 </div>
                 <div>
                   <label className="label-form">Data de término</label>
-                  <input
-                    type="datetime-local"
-                    className={`input-form ${fieldErrors.eventEndDate ? 'border-red-400' : ''}`}
-                    value={form.eventEndDate}
-                    onChange={(e) => setField('eventEndDate', e.target.value)}
-                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="date"
+                      className={`input-form ${fieldErrors.eventEndDate ? 'border-red-400' : ''}`}
+                      value={form.eventEndDate}
+                      onChange={(e) => setField('eventEndDate', e.target.value)}
+                    />
+                    <input
+                      type="time"
+                      className="input-form"
+                      value={form.eventEndTime}
+                      onChange={(e) => setField('eventEndTime', e.target.value)}
+                    />
+                  </div>
                   {fieldErrors.eventEndDate && <p className="mt-1 text-xs text-red-600">{fieldErrors.eventEndDate}</p>}
                 </div>
               </div>

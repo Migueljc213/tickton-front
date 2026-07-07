@@ -28,6 +28,10 @@ export const usersService = {
     return apiClient.patch<User>(`${API_ENDPOINTS.users.base}/${id}`, data);
   },
 
+  async updateUserRole(id: number, role: 'participant' | 'organizer' | 'admin'): Promise<User> {
+    return apiClient.patch<User>(`${API_ENDPOINTS.users.base}/${id}/role`, { role });
+  },
+
   async deleteUser(id: number): Promise<void> {
     return apiClient.delete<void>(`${API_ENDPOINTS.users.base}/${id}`);
   },

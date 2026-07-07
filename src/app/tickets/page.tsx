@@ -177,6 +177,12 @@ export default function TicketsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    if (!loading && !error && tickets.length === 0) {
+      router.push('/events');
+    }
+  }, [loading, error, tickets, router]);
+
   const filtered = tickets.filter((t) => {
     if (statusFilter && t.status !== statusFilter) return false;
     if (search) {
