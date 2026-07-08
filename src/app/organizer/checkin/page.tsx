@@ -215,6 +215,11 @@ export default function CheckinPage() {
     if (!cameraMode) return;
 
     let active = true;
+    // Trava a 1ª leitura da sessão: o ZXing chama esse callback a cada frame
+    // em que reconhece o QR code, e o ingresso fica alguns segundos na frente
+    // da câmera — sem essa trava, o mesmo código é validado dezenas de vezes
+    // (1ª vira sucesso, as seguintes caem em "já utilizado").
+    let scanned = false;
 
     (async () => {
       try {
@@ -225,8 +230,14 @@ export default function CheckinPage() {
           { video: { facingMode: 'environment' } },
           videoRef.current!,
           (result, err) => {
-            if (!active || !result) return void err;
-            void validate(result.getText());
+            if (!active || !result || scanned) return void err;
+            scanned = true;
+            // Fecha a câmera após o resultado: o feedback visual (card verde/
+            // amarelo/vermelho) fica visível no lugar dela, e ler outro
+            // ingresso exige clicar em "Usar câmera" de novo.
+            void validate(result.getText()).finally(() => {
+              if (active) stopCamera();
+            });
           },
         );
 

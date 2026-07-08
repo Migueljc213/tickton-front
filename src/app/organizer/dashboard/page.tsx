@@ -30,6 +30,7 @@ import {
   FaTrash,
   FaUserCog,
   FaUsers,
+  FaSearch,
 } from 'react-icons/fa';
 import { useOrders, useAuth } from '@/hooks';
 import { eventsService } from '@/lib/api/services';
@@ -68,7 +69,15 @@ export default function OrganizerDashboard() {
   const [eventStats, setEventStats] = useState<Record<number, CheckInDashboardResponse>>({});
   const [eventsLoading, setEventsLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [eventSearchInput, setEventSearchInput] = useState('');
+  const [eventSearchTerm, setEventSearchTerm] = useState('');
   const processed = useRef(false);
+
+  const filteredOrganizerEvents = eventSearchTerm
+    ? organizerEvents.filter((e) =>
+        e.title.toLowerCase().includes(eventSearchTerm.toLowerCase()),
+      )
+    : organizerEvents;
 
   // Auth guard — runs once
   useEffect(() => {
@@ -357,8 +366,33 @@ export default function OrganizerDashboard() {
 
         {/* Events table */}
         <div style={{ ...cardStyle, padding: 0, marginBottom: 28, overflow: 'hidden' }}>
-          <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9' }}>
+          <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <h2 style={{ fontWeight: 700, color: '#0f172a', fontSize: '1.05rem', margin: 0 }}>Meus Eventos</h2>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="text"
+                value={eventSearchInput}
+                onChange={(e) => setEventSearchInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && setEventSearchTerm(eventSearchInput)}
+                placeholder="Buscar evento por título..."
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #e2e8f0',
+                  fontSize: '0.85rem',
+                  color: '#0f172a',
+                  outline: 'none',
+                  minWidth: 220,
+                }}
+              />
+              <Button
+                variant="outline"
+                style={{ padding: '8px 14px' }}
+                onClick={() => setEventSearchTerm(eventSearchInput)}
+              >
+                <FaSearch style={{ marginRight: 6, fontSize: '0.8rem' }} /> Buscar
+              </Button>
+            </div>
           </div>
 
           {organizerEvents.length === 0 ? (
@@ -366,6 +400,16 @@ export default function OrganizerDashboard() {
               <p style={{ color: '#94a3b8', marginBottom: 16 }}>Nenhum evento encontrado</p>
               <Button style={{ background: '#00C2A8', color: '#fff' }} onClick={() => router.push('/organizer/events/new')}>
                 <FaPlus style={{ marginRight: 8 }} /> Criar Primeiro Evento
+              </Button>
+            </div>
+          ) : filteredOrganizerEvents.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+              <p style={{ color: '#94a3b8', marginBottom: 16 }}>Nenhum evento encontrado para &quot;{eventSearchTerm}&quot;</p>
+              <Button
+                variant="outline"
+                onClick={() => { setEventSearchInput(''); setEventSearchTerm(''); }}
+              >
+                Limpar busca
               </Button>
             </div>
           ) : (
@@ -381,7 +425,7 @@ export default function OrganizerDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {organizerEvents.map((event) => {
+                  {filteredOrganizerEvents.map((event) => {
                     const es = eventStats[event.id];
                     return (
                       <tr

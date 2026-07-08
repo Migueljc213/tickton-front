@@ -138,9 +138,9 @@ export default function Header() {
               <Image
                 src="/logo-ticketon.png"
                 alt="Ticketon"
-                width={160}
-                height={40}
-                className="h-9 w-auto object-contain"
+                width={240}
+                height={60}
+                className="h-[54px] w-auto object-contain"
                 priority
               />
             </Link>

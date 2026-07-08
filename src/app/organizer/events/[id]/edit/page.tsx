@@ -380,7 +380,7 @@ export default function EditEventPage() {
 
       toast.success('Evento atualizado com sucesso!');
       setSaved(true);
-      setTimeout(() => router.push('/organizer/dashboard'), 1800);
+      setTimeout(() => router.push('/organizer/events'), 1800);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro inesperado');
       scrollTop();

@@ -27,6 +27,9 @@ export default function SettingsPage() {
   const [name, setName]         = useState('');
   const [email, setEmail]       = useState('');
   const [cpfCnpj, setCpfCnpj]   = useState('');
+  const [gender, setGender]         = useState('');
+  const [age, setAge]               = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
 
   const [newPassword, setNewPassword]         = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -49,6 +52,9 @@ export default function SettingsPage() {
         setName(u.name);
         setEmail(u.email);
         setCpfCnpj(u.cpfCnpj ? maskCpfCnpj(u.cpfCnpj) : '');
+        setGender(u.gender ?? '');
+        setAge(u.age != null ? String(u.age) : '');
+        setNeighborhood(u.neighborhood ?? '');
       })
       .catch(() => router.push('/login'))
       .finally(() => setLoading(false));
@@ -69,6 +75,9 @@ export default function SettingsPage() {
         name: name.trim(),
         email: email.trim().toLowerCase(),
         cpfCnpj: cpfCnpj.trim() || undefined,
+        gender: gender || undefined,
+        age: age ? Number(age) : undefined,
+        neighborhood: neighborhood.trim() || undefined,
       });
       setUser(updated);
       storage.setUserName(updated.name);
@@ -255,7 +264,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div style={{ marginBottom: 28 }}>
+              <div style={{ marginBottom: 20 }}>
                 <label style={labelStyle}>E-mail</label>
                 <input
                   type="email"
@@ -265,6 +274,43 @@ export default function SettingsPage() {
                   style={inputStyle}
                   placeholder="seu@email.com"
                 />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, marginBottom: 28 }}>
+                <div>
+                  <label style={labelStyle}>Sexo</label>
+                  <select
+                    value={gender}
+                    onChange={e => setGender(e.target.value)}
+                    style={inputStyle}
+                  >
+                    <option value="">Prefiro não informar</option>
+                    <option value="feminino">Feminino</option>
+                    <option value="masculino">Masculino</option>
+                    <option value="outro">Outro</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Idade</label>
+                  <input
+                    type="number"
+                    value={age}
+                    onChange={e => setAge(e.target.value)}
+                    style={inputStyle}
+                    placeholder="Ex: 28"
+                    min={1}
+                    max={120}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Lugar</label>
+                  <input
+                    value={neighborhood}
+                    onChange={e => setNeighborhood(e.target.value)}
+                    style={inputStyle}
+                    placeholder="Ex: Barra Mansa"
+                  />
+                </div>
               </div>
 
               <button type="submit" disabled={saving} style={submitStyle}>
