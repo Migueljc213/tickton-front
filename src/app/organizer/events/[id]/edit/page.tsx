@@ -250,7 +250,7 @@ export default function EditEventPage() {
 
   const formatPrice = (cents: string) => {
     const n = parseInt(cents || '0', 10);
-    return (n / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    return (n / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   };
 
   const handleSave = async () => {

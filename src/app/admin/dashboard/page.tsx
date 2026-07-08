@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import { storage } from '@/lib/utils/storage';
 import {
   FaUsers, FaCalendarAlt, FaDollarSign, FaTicketAlt, FaChartLine,
   FaEye, FaEdit, FaPlus, FaDownload, FaSearch, FaCrown, FaShieldAlt,
@@ -182,8 +183,7 @@ const TABS = [
   { id: 'events',   label: 'Eventos',     icon: FaCalendarAlt },
 ];
 
-function getToken() { return typeof window !== 'undefined' ? localStorage.getItem('token') : null; }
-function authH(): HeadersInit { const t = getToken(); return t ? { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }; }
+function authH(): HeadersInit { const t = storage.getToken(); return t ? { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }; }
 
 /* ─── Page ───────────────────────────────────────────────────────────────── */
 export default function AdminDashboard() {

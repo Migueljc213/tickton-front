@@ -15,7 +15,7 @@ import {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3002';
-
+console.log(FRONTEND_URL)
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Analytics {

@@ -82,12 +82,52 @@ function combineDateTime(date: string, time: string): string {
 
 const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 
+const DRAFT_KEY = 'ticketon:new-event-draft';
+
+type Draft = {
+  step: Step;
+  event: typeof EMPTY_EVENT;
+  lotes: Lote[];
+};
+
+const EMPTY_EVENT = {
+  title: '',
+  description: '',
+  category: 'music',
+  eventDate: '',
+  eventTime: '',
+  eventEndDate: '',
+  eventEndTime: '',
+  locationType: 'presencial',
+  venueName: '',
+  address: '',
+  complement: '',
+  city: '',
+  state: '',
+  zipcode: '',
+  onlineUrl: '',
+  maxAttendees: '',
+  isPublished: false,
+};
+
+function loadDraft(): Draft | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    return raw ? (JSON.parse(raw) as Draft) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function NewEventPage() {
   const router = useRouter();
   const { getToken } = useAuth();
   const { toasts, toast, dismiss } = useToast();
 
-  const [step, setStep] = useState<Step>('event');
+  const draft = loadDraft();
+
+  const [step, setStep] = useState<Step>(draft?.step ?? 'event');
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<EventFieldErrors>({});
   const [createdEventId, setCreatedEventId] = useState<number | null>(null);
@@ -112,27 +152,16 @@ export default function NewEventPage() {
       .catch(() => null);
   }, [getToken]);
 
-  const [event, setEvent] = useState({
-    title: '',
-    description: '',
-    category: 'music',
-    eventDate: '',
-    eventTime: '',
-    eventEndDate: '',
-    eventEndTime: '',
-    locationType: 'presencial',
-    venueName: '',
-    address: '',
-    complement: '',
-    city: '',
-    state: '',
-    zipcode: '',
-    onlineUrl: '',
-    maxAttendees: '',
-    isPublished: false,
-  });
+  const [event, setEvent] = useState(draft?.event ?? EMPTY_EVENT);
 
-  const [lotes, setLotes] = useState<Lote[]>([{ ...EMPTY_LOTE }]);
+  const [lotes, setLotes] = useState<Lote[]>(draft?.lotes ?? [{ ...EMPTY_LOTE }]);
+
+  // Persiste o rascunho para sobreviver a reload / navegação para fora da página.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const toSave: Draft = { step, event, lotes };
+    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(toSave));
+  }, [step, event, lotes]);
 
   const setEventField = (k: string, v: string | boolean) => {
     setEvent((prev) => ({ ...prev, [k]: v }));
@@ -331,7 +360,8 @@ export default function NewEventPage() {
           onlineUrl: str(event.onlineUrl),
           bannerUrl,
           maxAttendees: event.maxAttendees ? Number(event.maxAttendees) : undefined,
-          isPublic: event.isPublished,
+          isPublished: event.isPublished,
+          status: event.isPublished ? 'published' : 'draft',
         }),
       });
 
@@ -367,6 +397,7 @@ export default function NewEventPage() {
         }
       }
 
+      window.localStorage.removeItem(DRAFT_KEY);
       toast.success('Evento criado com sucesso!');
       setStep('review');
       setTimeout(() => router.push('/organizer/dashboard'), 2000);

@@ -10,7 +10,7 @@ import {
 } from 'react-icons/fa';
 import { IconType } from 'react-icons';
 import { useEvents } from '@/hooks';
-import { formatDate } from '@/lib/utils/format';
+import { formatDate, isEventEnded } from '@/lib/utils/format';
 import type { Event } from '@/types/api';
 
 type SortMode = 'upcoming' | 'organizer' | 'date_asc' | 'date_desc';
@@ -403,8 +403,7 @@ function EventsContent() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {sortedEvents.map((event) => {
               const coverImage = parseCoverImage(event.bannerUrl);
-              const endRef = event.eventEndDate ? new Date(event.eventEndDate) : new Date(event.eventDate);
-              const isEnded = endRef < new Date();
+              const isEnded = isEventEnded(event);
               return (
                 <Card
                   key={event.id}

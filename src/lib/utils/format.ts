@@ -41,6 +41,12 @@ export const formatTime = (dateString: string): string => {
   });
 };
 
+/** Sem data de término, o evento é considerado em aberto (nunca encerrado) — não usa a data de início como fallback. */
+export function isEventEnded(event: { eventDate: string; eventEndDate?: string | null }): boolean {
+  if (!event.eventEndDate) return false;
+  return new Date(event.eventEndDate) < new Date();
+}
+
 /** Aplica máscara de CPF (000.000.000-00) ou CNPJ (00.000.000/0000-00) conforme o número de dígitos digitados */
 export function maskCpfCnpj(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 14);

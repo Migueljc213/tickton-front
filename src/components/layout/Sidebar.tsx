@@ -18,7 +18,6 @@ import {
   FaTimes,
   FaBars,
   FaSignOutAlt,
-  FaPlus,
   FaShieldAlt,
   FaUserTie,
   FaHome,
@@ -41,7 +40,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
   ],
   organizer: [
     { label: 'Dashboard',       href: '/organizer/dashboard',    icon: <FaChartLine /> },
-    { label: 'Criar Evento',    href: '/organizer/events/new',   icon: <FaPlus /> },
+    { label: 'Eventos',         href: '/organizer/events',       icon: <FaCalendarAlt /> },
     { label: 'Participantes',   href: '/organizer/participants', icon: <FaUsers /> },
     { label: 'Check-in',        href: '/organizer/checkin',      icon: <FaQrcode /> },
     { label: 'Analytics',       href: '/organizer/analytics',   icon: <FaChartBar /> },
