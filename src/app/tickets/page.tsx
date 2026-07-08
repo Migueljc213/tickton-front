@@ -16,6 +16,7 @@ interface RichTicket {
   id: number;
   qrCode: string;
   status: 'valid' | 'used' | 'cancelled';
+  purchasedAt: string;
   usedAt: string | null;
   ticket: { id: number; name: string; price: number; ticketType: string };
   event: { id: number; title: string; eventDate: string; venueName: string | null; city: string | null };
@@ -124,8 +125,7 @@ function QrModal({ ticket, onClose }: { ticket: RichTicket; onClose: () => void 
             <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 12px' }}>
               <p style={{ fontSize: '0.68rem', color: '#9ca3af', margin: '0 0 2px', textTransform: 'uppercase', fontWeight: 600 }}>Comprado em</p>
               <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151', margin: 0 }}>
-                {/* usedAt is null initially, show createdAt fallback */}
-                {ticket.usedAt ? fmtDt(ticket.usedAt) : '—'}
+                {ticket.purchasedAt ? fmtDt(ticket.purchasedAt) : '—'}
               </p>
             </div>
           </div>

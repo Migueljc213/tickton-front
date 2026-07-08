@@ -59,8 +59,8 @@ const CATEGORY_BADGES: Record<string, string> = {
   festival:   'bg-teal-100 text-teal-700',
 };
 
-/* Ordena eventos pelo critério selecionado */
-function applySortMode(events: Event[], mode: SortMode): Event[] {
+/* Aplica o critério de ordenação escolhido dentro de um grupo de eventos */
+function sortByMode(events: Event[], mode: SortMode, organizerCounts: Record<number, number>): Event[] {
   if (mode === 'upcoming') {
     const now = Date.now();
     const upcoming = events
@@ -72,9 +72,7 @@ function applySortMode(events: Event[], mode: SortMode): Event[] {
     return [...upcoming, ...past];
   }
   if (mode === 'organizer') {
-    const counts: Record<number, number> = {};
-    events.forEach((e) => { counts[e.organizerId] = (counts[e.organizerId] ?? 0) + 1; });
-    return [...events].sort((a, b) => (counts[b.organizerId] ?? 0) - (counts[a.organizerId] ?? 0));
+    return [...events].sort((a, b) => (organizerCounts[b.organizerId] ?? 0) - (organizerCounts[a.organizerId] ?? 0));
   }
   if (mode === 'date_asc') {
     return [...events].sort((a, b) => new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime());
@@ -83,6 +81,20 @@ function applySortMode(events: Event[], mode: SortMode): Event[] {
     return [...events].sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime());
   }
   return events;
+}
+
+/* Ordena eventos pelo critério selecionado — eventos encerrados sempre vão para o final, independente do critério */
+function applySortMode(events: Event[], mode: SortMode): Event[] {
+  const organizerCounts: Record<number, number> = {};
+  events.forEach((e) => { organizerCounts[e.organizerId] = (organizerCounts[e.organizerId] ?? 0) + 1; });
+
+  const active = events.filter((e) => !isEventEnded(e));
+  const ended = events.filter((e) => isEventEnded(e));
+
+  return [
+    ...sortByMode(active, mode, organizerCounts),
+    ...sortByMode(ended, mode, organizerCounts),
+  ];
 }
 
 const EventInfoItem = ({ icon: Icon, children }: { icon: IconType; children: React.ReactNode }) => (
