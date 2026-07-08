@@ -75,7 +75,7 @@ function TicketCard({ info, status }: { info: TicketInfo; status: ScanStatus }) 
       </div>
 
       {/* Dados do comprador */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12 }}>
         <div style={{ background: 'rgba(255,255,255,0.7)', borderRadius: 10, padding: '10px 12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
             <FaUser style={{ fontSize: '0.7rem', color: '#64748b' }} />
@@ -302,7 +302,7 @@ export default function CheckinPage() {
           {/* Camera or Manual Input */}
           {cameraMode ? (
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              <div className="relative bg-black aspect-video">
+              <div className="relative bg-black h-[65vh] sm:h-[480px]">
                 <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
                 {/* Viewfinder overlay */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
