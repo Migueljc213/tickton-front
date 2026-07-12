@@ -2,7 +2,10 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import OrganizerProfileClient, { type Organizer } from './OrganizerProfileClient';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+// Fetch acontece no servidor — chama o backend direto, sem passar pelo proxy
+// /api usado pelo navegador. Precisa ser URL absoluta também porque vai em
+// tags og:image, lidas por crawlers externos (Facebook/Twitter), não pelo navegador.
+const API_URL = process.env.BACKEND_ORIGIN ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 async function fetchOrganizer(id: string): Promise<Organizer | null> {
   try {

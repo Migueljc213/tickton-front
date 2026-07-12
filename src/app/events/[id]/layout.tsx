@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+// Fetch acontece no servidor (generateMetadata) — chama o backend direto,
+// sem passar pelo proxy /api usado pelo navegador.
+const API_URL = process.env.BACKEND_ORIGIN ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 type Props = {
   params: Promise<{ id: string }>;

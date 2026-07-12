@@ -23,7 +23,9 @@ export const metadata: Metadata = {
   },
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+// Fetch acontece no servidor — chama o backend direto, sem passar pelo proxy
+// /api usado pelo navegador.
+const API_URL = process.env.BACKEND_ORIGIN ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 async function fetchEvents() {
   try {
